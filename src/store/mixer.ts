@@ -18,9 +18,15 @@ function debouncedInvoke(key: string, cmd: string, args: Record<string, unknown>
   );
 }
 
+/** Per-sink [left, right] peak amplitudes (0–1), streamed from the native backend. */
+export type Levels = Record<string, [number, number]>;
+
 interface MixerStore {
   channels: VirtualSink[];
   appStreams: AppStream[];
+  /** Live VU levels; stays empty under the pactl fallback backend. */
+  levels: Levels;
+  setLevels: (levels: Levels) => void;
   profiles: string[];
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
@@ -47,6 +53,8 @@ interface MixerStore {
 export const useMixerStore = create<MixerStore>((set, get) => ({
   channels: [],
   appStreams: [],
+  levels: {},
+  setLevels: (levels) => set({ levels }),
   profiles: [],
   activeProfile: null,
   error: null,

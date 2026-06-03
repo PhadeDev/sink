@@ -16,11 +16,17 @@ interface ChannelStripProps {
   appCount: number;
 }
 
+/** Map a linear peak amplitude to a perceptual meter height. */
+function perceptual(amplitude: number): number {
+  return Math.min(1, Math.sqrt(Math.max(0, amplitude)));
+}
+
 export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const setChannelVolume = useMixerStore((s) => s.setChannelVolume);
   const toggleMute = useMixerStore((s) => s.toggleMute);
+  const level = useMixerStore((s) => s.levels[channel.name]);
 
-  const intensity = channel.volume_percent / MAX_VOLUME;
+  const [left, right] = level ?? [0, 0];
 
   return (
     <div className={"strip" + (channel.muted ? " muted" : "")}>
@@ -35,13 +41,13 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
       </div>
 
       <div className="strip-body">
-        <VuMeter active={!channel.muted} intensity={intensity} />
+        <VuMeter target={channel.muted ? 0 : perceptual(left)} />
         <Fader
           value={channel.volume_percent}
           max={MAX_VOLUME}
           onChange={(v) => void setChannelVolume(channel.name, v)}
         />
-        <VuMeter active={!channel.muted} intensity={intensity} />
+        <VuMeter target={channel.muted ? 0 : perceptual(right)} />
       </div>
 
       <div className="strip-readout">

@@ -5,17 +5,37 @@ mod mixer;
 mod persistence;
 mod state;
 
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 
+use audio::backend::AudioBackend;
 use audio::pactl::PactlBackend;
+use audio::pw_native::levels::LevelStore;
+use audio::pw_native::PipeWireBackend;
+use audio::types::VIRTUAL_SINKS;
 use state::AppState;
 
 pub fn run() {
-    let app_state = AppState::new(Arc::new(PactlBackend::new()));
+    // Prefer the native PipeWire backend (Phase 2); fall back to pactl
+    // subprocess calls if the native loop can't come up. Levels (real VU
+    // metering) are native-only.
+    let (backend, levels): (Arc<dyn AudioBackend>, Option<Arc<LevelStore>>) =
+        match PipeWireBackend::new() {
+            Ok(backend) => {
+                let levels = backend.levels.clone();
+                (Arc::new(backend), Some(levels))
+            }
+            Err(e) => {
+                eprintln!("sink: native PipeWire backend unavailable ({e}); using pactl fallback");
+                (Arc::new(PactlBackend::new()), None)
+            }
+        };
+    let app_state = AppState::new(backend);
 
     let result = tauri::Builder::default()
         .manage(app_state)
@@ -35,8 +55,11 @@ pub fn run() {
             commands::profiles::load_profile,
             commands::profiles::delete_profile,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             build_tray(app)?;
+            if let Some(levels) = levels {
+                spawn_level_emitter(app.handle().clone(), levels);
+            }
             Ok(())
         })
         // Close button hides to tray instead of quitting.
@@ -56,6 +79,23 @@ pub fn run() {
     }
 }
 
+/// Streams per-channel peak levels to the UI at 10 Hz as `levels` events.
+/// Peaks are drained (read-and-reset), so silence decays to zero.
+fn spawn_level_emitter(handle: tauri::AppHandle, levels: Arc<LevelStore>) {
+    std::thread::spawn(move || loop {
+        let payload: HashMap<&'static str, [f32; 2]> = VIRTUAL_SINKS
+            .iter()
+            .enumerate()
+            .map(|(slot, (name, _))| (*name, [levels.drain(slot, 0), levels.drain(slot, 1)]))
+            .collect();
+        if handle.emit("levels", &payload).is_err() {
+            // App is shutting down.
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    });
+}
+
 fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
     let autostart = CheckMenuItem::with_id(
@@ -70,10 +110,9 @@ fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let menu = Menu::with_items(app, &[&show, &autostart, &quit])?;
     let autostart_item = autostart.clone();
 
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .ok_or("no default window icon configured")?;
+    // Dedicated 22px tray glyph from the icon pack (white for the common
+    // dark panel; the full-color icon stays on the window/dock).
+    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-white-22.png"))?;
 
     TrayIconBuilder::with_id("sink-tray")
         .icon(icon)
