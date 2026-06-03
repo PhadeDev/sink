@@ -2,11 +2,12 @@ mod audio;
 mod commands;
 mod error;
 mod mixer;
+mod persistence;
 mod state;
 
 use std::sync::Arc;
 
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, WindowEvent};
 
@@ -28,6 +29,11 @@ pub fn run() {
             commands::routing::set_channel_volume,
             commands::routing::toggle_channel_mute,
             commands::routing::set_app_volume,
+            commands::routing::rename_app,
+            commands::profiles::list_profiles,
+            commands::profiles::save_profile,
+            commands::profiles::load_profile,
+            commands::profiles::delete_profile,
         ])
         .setup(|app| {
             build_tray(app)?;
@@ -52,8 +58,17 @@ pub fn run() {
 
 fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Start at login",
+        true,
+        persistence::autostart::is_enabled(),
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &autostart, &quit])?;
+    let autostart_item = autostart.clone();
 
     let icon = app
         .default_window_icon()
@@ -65,12 +80,25 @@ fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .tooltip("sink")
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id.as_ref() {
+        .on_menu_event(move |app, event| match event.id.as_ref() {
             "show" => {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
+            }
+            "autostart" => {
+                // Toggle the systemd user unit; reflect the real state back
+                // into the menu (the click already flipped the checkbox).
+                let result = if persistence::autostart::is_enabled() {
+                    persistence::autostart::disable()
+                } else {
+                    persistence::autostart::enable()
+                };
+                if let Err(e) = result {
+                    eprintln!("sink: autostart toggle failed: {e}");
+                }
+                let _ = autostart_item.set_checked(persistence::autostart::is_enabled());
             }
             "quit" => {
                 // Clean up our virtual sinks before exiting. Best-effort:

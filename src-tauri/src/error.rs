@@ -19,6 +19,9 @@ pub enum SinkError {
     #[error("unknown virtual sink: {0}")]
     UnknownSink(String),
 
+    #[error("config error: {0}")]
+    Config(String),
+
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }

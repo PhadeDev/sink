@@ -607,6 +607,28 @@ body,
   color: var(--fg-muted);
   margin-top: 1px;
 }
+.row .rname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rename-btn {
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--r-xs);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.row:hover .rename-btn {
+  opacity: 1;
+}
+.rename-btn:hover {
+  color: var(--fg-primary);
+}
 .row .rtrail {
   display: flex;
   align-items: center;
@@ -734,6 +756,37 @@ body,
 .menu-item.sel .ms {
   color: var(--accent-hover);
 }
+.menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: var(--sp-2) 0;
+}
+.menu-save {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1);
+}
+.menu-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  color: var(--fg-primary);
+  font-family: inherit;
+  font-size: var(--fs-meta);
+  outline: none;
+}
+.menu-input:focus {
+  border-color: var(--accent);
+}
+.select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .scrim {
   position: fixed;
   inset: 0;

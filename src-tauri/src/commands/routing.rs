@@ -1,6 +1,7 @@
 use tauri::State;
 
 use crate::audio::types::is_virtual_sink;
+use crate::persistence::wireplumber;
 use crate::state::AppState;
 
 const LOCK_ERR: &str = "mixer state lock poisoned";
@@ -8,6 +9,10 @@ const MAX_VOLUME: u8 = 150;
 
 /// Move an app stream onto a channel. An empty `sink_name` unassigns the
 /// stream (returns it to the system default sink).
+///
+/// The choice is also recorded as a persistent assignment (Phase 2): saved
+/// to `$XDG_CONFIG_HOME/sink/assignments.json`, mirrored to a WirePlumber
+/// conf fragment, and re-applied by the stream poll when the app restarts.
 #[tauri::command]
 pub fn route_app_to_channel(
     state: State<'_, AppState>,
@@ -20,7 +25,35 @@ pub fn route_app_to_channel(
     state
         .backend
         .move_stream_to_sink(stream_index, &sink_name)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Resolve the stream's identity to record the assignment. The stream is
+    // already moved at this point, so persistence failures are reported but
+    // the live routing stands.
+    let streams = state.backend.list_app_streams().map_err(|e| e.to_string())?;
+    let Some(stream) = streams.iter().find(|s| s.index == stream_index) else {
+        return Ok(()); // stream vanished between move and lookup
+    };
+
+    let assignments = {
+        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        if sink_name.is_empty() {
+            mixer
+                .assignments
+                .remove(&stream.match_prop, &stream.app_name);
+        } else {
+            mixer
+                .assignments
+                .set(&stream.match_prop, &stream.app_name, &sink_name);
+        }
+        // The user explicitly placed this stream; don't auto-route it again.
+        mixer.auto_routed.insert(stream_index);
+        mixer.assignments.clone()
+    };
+
+    assignments.save().map_err(|e| e.to_string())?;
+    wireplumber::write(&assignments).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Set a channel's volume (0–150%).
@@ -60,6 +93,23 @@ pub fn toggle_channel_mute(
         channel.muted = muted;
     }
     Ok(())
+}
+
+/// Set or clear a persistent display name for an app, keyed by its stream
+/// identity. An empty `alias` reverts to the discovered name.
+#[tauri::command]
+pub fn rename_app(
+    state: State<'_, AppState>,
+    match_prop: String,
+    match_value: String,
+    alias: String,
+) -> Result<(), String> {
+    let aliases = {
+        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        mixer.aliases.set(&match_prop, &match_value, &alias);
+        mixer.aliases.clone()
+    };
+    aliases.save().map_err(|e| e.to_string())
 }
 
 /// Set the volume of a single app stream (0–150%).

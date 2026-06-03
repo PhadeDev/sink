@@ -12,9 +12,16 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(backend: Arc<dyn AudioBackend>) -> Self {
+        // Saved assignments are loaded eagerly so auto-routing can enforce
+        // them as soon as the sinks exist.
+        let mixer = MixerState {
+            assignments: crate::persistence::assignments::Assignments::load(),
+            aliases: crate::persistence::aliases::Aliases::load(),
+            ..MixerState::default()
+        };
         Self {
             backend,
-            mixer: Mutex::new(MixerState::default()),
+            mixer: Mutex::new(mixer),
         }
     }
 

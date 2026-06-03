@@ -3,6 +3,10 @@
 export interface AppStream {
   index: number;
   app_name: string;
+  /** PipeWire property app_name was read from (stream identity for persistence). */
+  match_prop: string;
+  /** User-chosen display name overriding app_name. */
+  alias: string | null;
   icon_name: string | null;
   /** Name of the virtual sink the stream is routed to, if any. */
   assigned_sink: string | null;

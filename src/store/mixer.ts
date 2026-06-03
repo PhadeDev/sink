@@ -21,6 +21,9 @@ function debouncedInvoke(key: string, cmd: string, args: Record<string, unknown>
 interface MixerStore {
   channels: VirtualSink[];
   appStreams: AppStream[];
+  profiles: string[];
+  /** Name of the most recently saved/loaded profile this session. */
+  activeProfile: string | null;
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
   error: string | null;
   initialized: boolean;
@@ -33,11 +36,19 @@ interface MixerStore {
   toggleMute: (sinkName: string, muted: boolean) => Promise<void>;
   routeApp: (streamIndex: number, sinkName: string) => Promise<void>;
   setAppVolume: (streamIndex: number, volume: number) => Promise<void>;
+  fetchProfiles: () => Promise<void>;
+  saveProfile: (name: string) => Promise<void>;
+  loadProfile: (name: string) => Promise<void>;
+  deleteProfile: (name: string) => Promise<void>;
+  /** Set or clear (empty string) a persistent display name for an app. */
+  renameApp: (stream: AppStream, alias: string) => Promise<void>;
 }
 
 export const useMixerStore = create<MixerStore>((set, get) => ({
   channels: [],
   appStreams: [],
+  profiles: [],
+  activeProfile: null,
   error: null,
   initialized: false,
 
@@ -46,7 +57,11 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     try {
       await invoke("init_virtual_devices");
       set({ initialized: true, error: null });
-      await Promise.all([get().fetchChannels(), get().fetchAppStreams()]);
+      await Promise.all([
+        get().fetchChannels(),
+        get().fetchAppStreams(),
+        get().fetchProfiles(),
+      ]);
     } catch (e) {
       set({ error: String(e) });
     }
@@ -130,5 +145,67 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
       { streamIndex, volume },
       (e) => set({ error: String(e) }),
     );
+  },
+
+  fetchProfiles: async () => {
+    try {
+      const profiles = await invoke<string[]>("list_profiles");
+      set({ profiles });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  saveProfile: async (name) => {
+    try {
+      await invoke("save_profile", { name });
+      set({ activeProfile: name });
+      await get().fetchProfiles();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  loadProfile: async (name) => {
+    try {
+      await invoke("load_profile", { name });
+      set({ activeProfile: name });
+      // Volumes/mutes changed backend-side; routing re-enforces on the
+      // next poll. Refresh both views.
+      await Promise.all([get().fetchChannels(), get().fetchAppStreams()]);
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  deleteProfile: async (name) => {
+    try {
+      await invoke("delete_profile", { name });
+      if (get().activeProfile === name) set({ activeProfile: null });
+      await get().fetchProfiles();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  renameApp: async (stream, alias) => {
+    const trimmed = alias.trim();
+    set((s) => ({
+      appStreams: s.appStreams.map((a) =>
+        a.match_prop === stream.match_prop && a.app_name === stream.app_name
+          ? { ...a, alias: trimmed === "" ? null : trimmed }
+          : a,
+      ),
+    }));
+    try {
+      await invoke("rename_app", {
+        matchProp: stream.match_prop,
+        matchValue: stream.app_name,
+        alias: trimmed,
+      });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchAppStreams();
+    }
   },
 }));

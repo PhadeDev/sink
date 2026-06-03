@@ -211,14 +211,20 @@ impl AudioBackend for PactlBackend {
         Ok(inputs
             .into_iter()
             .map(|input| {
-                // Fallback chain: some apps (e.g. Spotify) omit
-                // application.name, leaving only generic node properties.
-                let app_name = prop(&input.properties, "application.name")
-                    .or_else(|| prop(&input.properties, "application.process.binary"))
-                    .or_else(|| prop(&input.properties, "media.name"))
-                    .or_else(|| prop(&input.properties, "node.name"))
-                    .unwrap_or("Unknown")
-                    .to_string();
+                // Fallback chain: some apps omit application.name, leaving
+                // only generic node properties. The winning property is kept
+                // as the stream's identity for persistent assignments.
+                let (app_name, match_prop) = [
+                    "application.name",
+                    "application.process.binary",
+                    "media.name",
+                    "node.name",
+                ]
+                .iter()
+                .find_map(|key| {
+                    prop(&input.properties, key).map(|v| (v.to_string(), (*key).to_string()))
+                })
+                .unwrap_or_else(|| ("Unknown".to_string(), "application.name".to_string()));
                 let icon_name =
                     prop(&input.properties, "application.icon_name").map(str::to_string);
                 let assigned_sink = sink_names
@@ -229,6 +235,9 @@ impl AudioBackend for PactlBackend {
                 AppStream {
                     index: input.index,
                     app_name,
+                    match_prop,
+                    // Filled in by the command layer from the saved aliases.
+                    alias: None,
                     icon_name,
                     assigned_sink,
                     volume_percent: volume_percent(&input.volume),

@@ -1,12 +1,24 @@
+use std::collections::HashSet;
+
 use crate::audio::types::{VirtualSink, VIRTUAL_SINKS};
+use crate::persistence::aliases::Aliases;
+use crate::persistence::assignments::Assignments;
 
 /// In-memory mixer state: the source of truth for channel volume/mute as
-/// set through the UI. No persistence in Phase 1 — reset on every launch.
+/// set through the UI, plus the persistent app→channel assignments.
 #[derive(Debug, Default)]
 pub struct MixerState {
     pub channels: Vec<VirtualSink>,
     /// True once `init_virtual_devices` has created the sinks.
     pub initialized: bool,
+    /// Saved app→channel assignments (persisted to disk + WirePlumber conf).
+    pub assignments: Assignments,
+    /// User-chosen display names for discovered apps (persisted to disk).
+    pub aliases: Aliases,
+    /// Stream indices already considered for auto-routing this session.
+    /// Each stream is enforced once, on first sight, so a user moving a
+    /// stream elsewhere (here or in pavucontrol) isn't fought every poll.
+    pub auto_routed: HashSet<u32>,
 }
 
 impl MixerState {

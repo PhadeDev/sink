@@ -27,7 +27,11 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["/usr/share/icons/**", "/usr/share/pixmaps/**"]
+        "scope": [
+          "/usr/share/icons/**",
+          "/usr/share/pixmaps/**",
+          "/var/lib/flatpak/exports/share/icons/**"
+        ]
       }
     }
   },

@@ -27,6 +27,12 @@ pub fn is_virtual_sink(sink_name: &str) -> bool {
 pub struct AppStream {
     pub index: u32,
     pub app_name: String,
+    /// PipeWire property `app_name` was read from (e.g. "application.name").
+    /// Together with `app_name` this is the stream's stable identity, used
+    /// for persistent routing assignments and aliases.
+    pub match_prop: String,
+    /// User-chosen display name overriding `app_name` (set via rename).
+    pub alias: Option<String>,
     pub icon_name: Option<String>,
     /// Name of the virtual sink the stream is routed to, if it is one of ours.
     pub assigned_sink: Option<String>,
