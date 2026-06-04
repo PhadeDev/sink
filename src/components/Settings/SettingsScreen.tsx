@@ -4,6 +4,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useMixerStore } from "../../store/mixer";
 import type { OutputDevice } from "../../types";
 import { Ms } from "../Icons";
+import { Modal } from "../Modal";
 import { Popover } from "../Popover";
 import { Toggle } from "../Toggle";
 
@@ -82,6 +83,7 @@ export function SettingsScreen() {
   const [defaults, setDefaults] = useState<DefaultDevices>({ output: null, input: null });
   const [labelStyle, setLabelStyle] = useState<LabelStyle>("plain");
   const [labelStyleOpen, setLabelStyleOpen] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const outputDevices = useMixerStore((s) => s.outputDevices);
   const inputDevices = useMixerStore((s) => s.inputDevices);
@@ -234,8 +236,48 @@ export function SettingsScreen() {
               <div className="rsub">GPL-3.0 · config in ~/.config/sink</div>
             </div>
           </div>
+          <div className="row">
+            <div className="ricon">
+              <Ms name="restart_alt" />
+            </div>
+            <div className="rmain">
+              <div className="rtitle">Reset Sink</div>
+              <div className="rsub">
+                Erase all channels, mixes, profiles, app history and preferences
+              </div>
+            </div>
+            <button className="select" onClick={() => setConfirmingReset(true)}>
+              <span>Reset…</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      <Modal
+        open={confirmingReset}
+        onClose={() => setConfirmingReset(false)}
+        title="Reset Sink?"
+      >
+        <p className="modal-text">
+          Everything you've set up — channels, mixes, profiles, app assignments,
+          history and preferences — is permanently deleted, and Sink relaunches
+          as if freshly installed.
+        </p>
+        <div className="modal-btns">
+          <button
+            className="modal-btn danger"
+            onClick={() => {
+              setConfirmingReset(false);
+              void invoke("reset_app").catch((e) => setError(String(e)));
+            }}
+          >
+            Reset everything
+          </button>
+          <button className="modal-btn" onClick={() => setConfirmingReset(false)}>
+            Cancel
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
