@@ -41,23 +41,47 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libpipewire-0.3-dev \
-            clang
+            clang \
+            squashfs-tools \
+            zstd
 
       - run: npm ci
 
-      - name: Build and publish release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Sink ${{ github.ref_name }}"
-          releaseBody: |
-            Linux builds:
-            - **AppImage** — portable, run anywhere (`chmod +x` and go)
-            - **.deb** — Debian / Ubuntu and derivatives
-            - **.rpm** — Fedora / openSUSE and derivatives
+      - name: Build bundles
+        run: npm run tauri build
 
-            Requires PipeWire with `pipewire-pulse` and WirePlumber 0.5+.
-          releaseDraft: false
-          prerelease: false
+      - name: Repack AppImage against system PipeWire
+        # linuxdeploy bundles the build machine's libpipewire, which has
+        # its SPA plugin directory baked in at the distro's path — on any
+        # other distro it can't load support.system and the native backend
+        # dies. PipeWire is a hard runtime requirement anyway, so strip the
+        # bundled copy and let the loader use the system library.
+        run: |
+          set -euo pipefail
+          cd src-tauri/target/release/bundle/appimage
+          app=$(ls sink_*.AppImage)
+          ./"$app" --appimage-extract > /dev/null
+          rm -fv squashfs-root/usr/lib/libpipewire-0.3.so*
+          offset=$(./"$app" --appimage-offset)
+          head -c "$offset" "$app" > runtime
+          mksquashfs squashfs-root payload.squashfs -root-owned -noappend -quiet -comp zstd
+          cat runtime payload.squashfs > "$app"
+          chmod +x "$app"
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          gh release create "$tag" --title "Sink $tag" --notes "Linux builds:
+          - **AppImage** — portable, run anywhere (\`chmod +x\` and go)
+          - **.deb** — Debian / Ubuntu and derivatives
+          - **.rpm** — Fedora / openSUSE and derivatives
+
+          Requires PipeWire with \`pipewire-pulse\` and WirePlumber 0.5+." || true
+          gh release upload "$tag" --clobber \
+            src-tauri/target/release/bundle/appimage/sink_*.AppImage \
+            src-tauri/target/release/bundle/deb/*.deb \
+            src-tauri/target/release/bundle/rpm/*.rpm
