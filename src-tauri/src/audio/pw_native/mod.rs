@@ -149,4 +149,18 @@ impl AudioBackend for PipeWireBackend {
         let config = config.clone();
         self.request(|reply| Cmd::SetMicConfig { config, reply })
     }
+
+    fn get_default_devices(&self) -> Result<(Option<String>, Option<String>), SinkError> {
+        self.request(|reply| Cmd::GetDefaults { reply })
+    }
+
+    fn set_default_output(&self, name: &str) -> Result<(), SinkError> {
+        let name = name.to_string();
+        self.request(|reply| Cmd::SetDefault { input: false, name, reply })
+    }
+
+    fn set_default_input(&self, name: &str) -> Result<(), SinkError> {
+        let name = name.to_string();
+        self.request(|reply| Cmd::SetDefault { input: true, name, reply })
+    }
 }

@@ -53,6 +53,10 @@ pub enum Cmd {
     SetMicConfig { config: MicConfig, reply: Reply<()> },
     /// Hardware capture devices (microphones).
     ListInputs { reply: Reply<Vec<OutputDevice>> },
+    /// Current system defaults: (output sink name, input source name).
+    GetDefaults { reply: Reply<(Option<String>, Option<String>)> },
+    /// Set the configured system default sink (input=false) or source.
+    SetDefault { input: bool, name: String, reply: Reply<()> },
 }
 
 struct PortEntry {
@@ -86,6 +90,7 @@ struct State {
     metadata: Option<Metadata>,
     _metadata_listener: Option<MetadataListener>,
     default_sink_name: Option<String>,
+    default_source_name: Option<String>,
     /// Virtual sinks we created: name -> created-object proxy (kept alive;
     /// destroyed explicitly on teardown).
     owned_sinks: HashMap<String, Node>,
@@ -304,15 +309,18 @@ fn on_global(
             let listener = metadata
                 .add_listener_local()
                 .property(move |_subject, key, _type, value| {
-                    if key == Some("default.audio.sink") {
-                        // value is JSON like {"name":"alsa_output...."}
-                        let name = value.and_then(|v| {
+                    // values are JSON like {"name":"alsa_output...."}
+                    let parse_name = |v: Option<&str>| {
+                        v.and_then(|v| {
                             serde_json::from_str::<serde_json::Value>(v)
                                 .ok()?
                                 .get("name")?
                                 .as_str()
                                 .map(str::to_string)
-                        });
+                        })
+                    };
+                    if key == Some("default.audio.sink") {
+                        let name = parse_name(value);
                         let changed = {
                             let mut s = state_m.borrow_mut();
                             let changed = s.default_sink_name != name;
@@ -324,6 +332,8 @@ fn on_global(
                         if changed {
                             ensure_all_links(&state_m);
                         }
+                    } else if key == Some("default.audio.source") {
+                        state_m.borrow_mut().default_source_name = parse_name(value);
                     }
                     0
                 })
@@ -905,6 +915,32 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 })
                 .collect();
             let _ = reply.send(Ok(inputs));
+        }
+        Cmd::GetDefaults { reply } => {
+            let s = state.borrow();
+            let _ = reply.send(Ok((
+                s.default_sink_name.clone(),
+                s.default_source_name.clone(),
+            )));
+        }
+        Cmd::SetDefault { input, name, reply } => {
+            let s = state.borrow();
+            let Some(metadata) = s.metadata.as_ref() else {
+                let _ = reply.send(Err(SinkError::Config(
+                    "no default metadata object (is WirePlumber running?)".into(),
+                )));
+                return;
+            };
+            // The same mechanism wpctl uses: WirePlumber watches the
+            // configured keys and applies + persists the choice.
+            let key = if input {
+                "default.configured.audio.source"
+            } else {
+                "default.configured.audio.sink"
+            };
+            let value = format!("{{\"name\":\"{}\"}}", name.replace('"', "\\\""));
+            metadata.set_property(0, key, Some("Spa:String:JSON"), Some(&value));
+            let _ = reply.send(Ok(()));
         }
         Cmd::SetChannelOutput { sink_name, output_name, reply } => {
             if !is_virtual_sink(&sink_name) {

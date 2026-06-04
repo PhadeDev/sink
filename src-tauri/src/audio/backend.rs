@@ -37,6 +37,17 @@ pub trait AudioBackend: Send + Sync {
     /// Hardware capture devices (microphones) for the Phase 3 mic chain.
     fn list_input_devices(&self) -> Result<Vec<OutputDevice>, SinkError>;
 
+    /// Current system defaults: (output sink name, input source name).
+    fn get_default_devices(&self) -> Result<(Option<String>, Option<String>), SinkError>;
+
+    /// Set the system default output device. Channels following the
+    /// default relink automatically.
+    fn set_default_output(&self, name: &str) -> Result<(), SinkError>;
+
+    /// Set the system default input device (what the mic chain captures
+    /// when no explicit input is chosen).
+    fn set_default_input(&self, name: &str) -> Result<(), SinkError>;
+
     /// Apply the Phase 3 mic chain configuration. Native-backend only; the
     /// pactl fallback reports it as unsupported.
     fn set_mic_config(&self, config: &MicConfig) -> Result<(), SinkError>;

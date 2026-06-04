@@ -317,6 +317,25 @@ impl AudioBackend for PactlBackend {
         ))
     }
 
+    fn get_default_devices(&self) -> Result<(Option<String>, Option<String>), SinkError> {
+        let sink = Self::run(&["get-default-sink"]).ok().map(|s| s.trim().to_string());
+        let source = Self::run(&["get-default-source"]).ok().map(|s| s.trim().to_string());
+        Ok((
+            sink.filter(|s| !s.is_empty()),
+            source.filter(|s| !s.is_empty()),
+        ))
+    }
+
+    fn set_default_output(&self, name: &str) -> Result<(), SinkError> {
+        Self::run(&["set-default-sink", name])?;
+        Ok(())
+    }
+
+    fn set_default_input(&self, name: &str) -> Result<(), SinkError> {
+        Self::run(&["set-default-source", name])?;
+        Ok(())
+    }
+
     fn set_channel_output(
         &self,
         sink_name: &str,

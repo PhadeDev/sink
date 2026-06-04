@@ -72,6 +72,9 @@ pub fn run() {
             commands::settings::get_backend_info,
             commands::settings::get_autostart,
             commands::settings::set_autostart,
+            commands::settings::get_default_devices,
+            commands::settings::set_default_output,
+            commands::settings::set_default_input,
         ])
         .setup(move |app| {
             build_tray(app)?;
