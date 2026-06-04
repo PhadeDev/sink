@@ -30,7 +30,9 @@
         "scope": [
           "/usr/share/icons/**",
           "/usr/share/pixmaps/**",
-          "/var/lib/flatpak/exports/share/icons/**"
+          "/var/lib/flatpak/exports/share/icons/**",
+          "$HOME/.local/share/icons/**",
+          "$HOME/.local/share/flatpak/exports/share/icons/**"
         ]
       }
     }

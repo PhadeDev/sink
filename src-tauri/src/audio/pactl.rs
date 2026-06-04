@@ -237,6 +237,7 @@ impl AudioBackend for PactlBackend {
                     // Filled in by the command layer from the saved aliases.
                     alias: None,
                     icon_name,
+                    icon_path: None,
                     assigned_sink,
                     volume_percent: volume_percent(&input.volume),
                     muted: input.mute,

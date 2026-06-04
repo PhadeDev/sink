@@ -509,6 +509,53 @@ body,
   color: var(--fg-muted);
   text-align: center;
 }
+.strip-meta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--r-xs);
+  transition: background 0.12s, color 0.12s;
+}
+.strip-meta-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--fg-secondary);
+}
+
+/* channel membership popover */
+.channel-apps-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--r-xs);
+}
+.channel-apps-icon img {
+  width: 18px;
+  height: 18px;
+}
+.channel-apps-icon .ms {
+  font-size: 16px;
+  color: var(--fg-muted);
+}
+.channel-apps-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.channel-apps-off {
+  margin-left: auto;
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+}
 
 .strip-body {
   flex: 1;

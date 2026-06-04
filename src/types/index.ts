@@ -10,6 +10,8 @@ export interface AppStream {
   /** User-chosen display name overriding app_name. */
   alias: string | null;
   icon_name: string | null;
+  /** Resolved absolute icon file path (desktop-entry based). */
+  icon_path: string | null;
   /** Name of the virtual sink the stream is routed to, if any. */
   assigned_sink: string | null;
   volume_percent: number;
@@ -54,6 +56,7 @@ export interface SeenApp {
   match_value: string;
   display_name: string;
   icon_name: string | null;
+  icon_path: string | null;
   /** Unix seconds of the last sighting. */
   last_seen: number;
   ignored: boolean;

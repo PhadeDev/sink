@@ -35,7 +35,7 @@ export function AppRow({ stream }: AppRowProps) {
   return (
     <div className="row">
       <div className="ricon">
-        <AppIcon iconName={stream.icon_name} appName={stream.app_name} />
+        <AppIcon iconPath={stream.icon_path} />
       </div>
       <div className="rmain">
         {editing ? (

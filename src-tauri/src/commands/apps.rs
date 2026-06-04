@@ -6,13 +6,14 @@ use crate::persistence::wireplumber;
 use crate::state::AppState;
 
 
-/// A seen-app entry enriched with its current routing and alias.
+/// A seen-app entry enriched with its current routing, alias and icon.
 #[derive(Debug, Clone, Serialize)]
 pub struct SeenApp {
     pub match_prop: String,
     pub match_value: String,
     pub display_name: String,
     pub icon_name: Option<String>,
+    pub icon_path: Option<String>,
     pub last_seen: u64,
     pub ignored: bool,
     pub assigned_sink: Option<String>,
@@ -28,11 +29,22 @@ pub fn get_seen_apps(state: State<'_, AppState>) -> Result<Vec<SeenApp>, String>
         .seen
         .apps
         .iter()
-        .map(|entry| SeenApp {
+        .map(|entry| {
+            let binary = (entry.match_prop == "application.process.binary")
+                .then_some(entry.match_value.as_str());
+            let resolved = crate::audio::icons::resolve(
+                &entry.display_name,
+                binary,
+                entry.icon_name.as_deref(),
+            );
+            SeenApp {
             match_prop: entry.match_prop.clone(),
             match_value: entry.match_value.clone(),
-            display_name: entry.display_name.clone(),
+            display_name: resolved
+                .display_name
+                .unwrap_or_else(|| entry.display_name.clone()),
             icon_name: entry.icon_name.clone(),
+            icon_path: resolved.icon_path,
             last_seen: entry.last_seen,
             ignored: entry.ignored,
             assigned_sink: mixer
@@ -43,6 +55,7 @@ pub fn get_seen_apps(state: State<'_, AppState>) -> Result<Vec<SeenApp>, String>
                 .aliases
                 .get(&entry.match_prop, &entry.match_value)
                 .map(str::to_string),
+            }
         })
         .collect())
 }

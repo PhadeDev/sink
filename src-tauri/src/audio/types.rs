@@ -183,6 +183,9 @@ pub struct AppStream {
     /// User-chosen display name overriding `app_name` (set via rename).
     pub alias: Option<String>,
     pub icon_name: Option<String>,
+    /// Resolved absolute icon file path (desktop-entry based), ready for
+    /// the asset protocol. Filled in by the command layer.
+    pub icon_path: Option<String>,
     /// Name of the virtual sink the stream is routed to, if it is one of ours.
     pub assigned_sink: Option<String>,
     pub volume_percent: u8,

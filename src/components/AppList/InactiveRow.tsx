@@ -17,7 +17,7 @@ export function InactiveRow({ app }: { app: SeenApp }) {
   return (
     <div className="row row-inactive">
       <div className="ricon">
-        <AppIcon iconName={app.icon_name} appName={app.display_name} />
+        <AppIcon iconPath={app.icon_path} />
       </div>
       <div className="rmain">
         <div className="rtitle" title={app.match_value}>

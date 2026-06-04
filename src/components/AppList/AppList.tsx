@@ -98,7 +98,7 @@ export function AppList() {
                 {ignored.map((app) => (
                   <div className="row row-inactive" key={`${app.match_prop}:${app.match_value}`}>
                     <div className="ricon">
-                      <AppIcon iconName={app.icon_name} appName={app.display_name} />
+                      <AppIcon iconPath={app.icon_path} />
                     </div>
                     <div className="rmain">
                       <div className="rtitle">

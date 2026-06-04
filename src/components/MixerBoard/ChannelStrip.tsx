@@ -6,6 +6,7 @@ import { channelIcon, Ms, ICON_CHOICES } from "../Icons";
 import { Modal } from "../Modal";
 import { Popover } from "../Popover";
 import { perceptual, volToDb } from "../../lib/audio";
+import { ChannelApps } from "./ChannelApps";
 import { Fader } from "./Fader";
 import { OutputSelect } from "./OutputSelect";
 import { VuMeter } from "./VuMeter";
@@ -30,6 +31,7 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const [draft, setDraft] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
+  const [managingApps, setManagingApps] = useState(false);
 
   const commitRename = () => {
     setEditing(false);
@@ -113,8 +115,20 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
             {channel.label}
           </div>
         )}
-        <div className="strip-meta">
-          {appCount} {appCount === 1 ? "app" : "apps"}
+        <div style={{ position: "relative" }}>
+          <button
+            className="strip-meta strip-meta-btn"
+            title="Choose which apps play through this channel"
+            onClick={() => setManagingApps(true)}
+          >
+            {appCount} {appCount === 1 ? "app" : "apps"}
+            <Ms name="expand_more" style={{ fontSize: 13 }} />
+          </button>
+          <ChannelApps
+            channel={channel}
+            open={managingApps}
+            onClose={() => setManagingApps(false)}
+          />
         </div>
       </div>
 

@@ -21,6 +21,19 @@ pub fn get_virtual_devices(state: State<'_, AppState>) -> Result<Vec<VirtualSink
 pub fn get_app_streams(state: State<'_, AppState>) -> Result<Vec<AppStream>, String> {
     let mut streams = state.backend.list_app_streams().map_err(|e| e.to_string())?;
 
+    // Desktop-entry resolution: real icon files and polished display names
+    // ("spotify" binary → Spotify with its actual icon). Cached per identity.
+    for stream in &mut streams {
+        let binary = (stream.match_prop == "application.process.binary")
+            .then_some(stream.match_value.as_str());
+        let resolved =
+            crate::audio::icons::resolve(&stream.app_name, binary, stream.icon_name.as_deref());
+        stream.icon_path = resolved.icon_path;
+        if let Some(name) = resolved.display_name {
+            stream.app_name = name;
+        }
+    }
+
     let mut mixer = state.lock_mixer()?;
 
     // Record sightings in the app history, then hide ignored identities
