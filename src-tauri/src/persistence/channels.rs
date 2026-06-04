@@ -198,6 +198,18 @@ mod tests {
     }
 
     #[test]
+    fn pathological_labels_hit_the_slug_fallback() {
+        let mut c = Channels::default();
+        // All-special-char labels slugify to empty → "channel" fallback.
+        let d = c.add("!!!", None).expect("adds");
+        assert_eq!(d.name, "sink_channel");
+        let d2 = c.add("___", None).expect("adds second pathological label");
+        assert_eq!(d2.name, "sink_channel_2");
+        // Whitespace-only labels are rejected outright.
+        assert!(c.add("   ", None).is_err());
+    }
+
+    #[test]
     fn remove_keeps_at_least_one() {
         let mut c = Channels::default();
         c.remove("sink_game").expect("removes");

@@ -83,6 +83,18 @@ pub fn set_bus_members(
     name: String,
     channels: Vec<String>,
 ) -> Result<(), String> {
+    // Validate against the definition set first, so a rejected request
+    // (master mix, unknown name) never reaches the backend — otherwise
+    // backend membership and the persisted definition could diverge.
+    {
+        let mixer = state.lock_mixer()?;
+        if crate::persistence::buses::is_master(&name) {
+            return Err("the master mix always carries every channel".to_string());
+        }
+        if mixer.buses.get(&name).is_none() {
+            return Err("unknown mix".to_string());
+        }
+    }
     state
         .backend
         .set_bus_members(&name, &channels)

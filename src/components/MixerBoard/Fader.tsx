@@ -22,9 +22,15 @@ export function Fader({ value, max, onChange }: FaderProps) {
     [onChange, max],
   );
 
+  // Listeners read the latest handler through a ref so they're attached
+  // once, not re-registered every parent re-render (faders re-render on
+  // each volume tick mid-drag).
+  const setFromEventRef = useRef(setFromEvent);
+  setFromEventRef.current = setFromEvent;
+
   useEffect(() => {
     const move = (e: PointerEvent) => {
-      if (dragging.current) setFromEvent(e.clientY);
+      if (dragging.current) setFromEventRef.current(e.clientY);
     };
     const up = () => {
       dragging.current = false;
@@ -35,7 +41,7 @@ export function Fader({ value, max, onChange }: FaderProps) {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-  }, [setFromEvent]);
+  }, []);
 
   const pct = (Math.max(0, Math.min(max, value)) / max) * 100;
 

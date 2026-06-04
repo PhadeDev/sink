@@ -263,6 +263,18 @@ mod tests {
     }
 
     #[test]
+    fn sync_master_replaces_stale_membership() {
+        let mut b = Buses::default();
+        b.sync_master(&["sink_game".into(), "sink_chat".into()]);
+        // A channel disappeared: sync must drop it, not merge.
+        b.sync_master(&["sink_game".into()]);
+        assert_eq!(b.get("sink_stream").expect("master").channels, vec!["sink_game"]);
+        // No channels at all: the master mirrors that too.
+        b.sync_master(&[]);
+        assert!(b.get("sink_stream").expect("master").channels.is_empty());
+    }
+
+    #[test]
     fn master_does_not_count_toward_limit() {
         let mut b = Buses::default();
         for i in 0..MAX_BUSES {

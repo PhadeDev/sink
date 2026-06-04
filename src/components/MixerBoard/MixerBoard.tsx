@@ -60,6 +60,7 @@ export function MixerBoard() {
   const addChannel = useMixerStore((s) => s.addChannel);
   const addBus = useMixerStore((s) => s.addBus);
   const micConfig = useMixerStore((s) => s.micConfig);
+  const backendNative = useMixerStore((s) => s.backendNative);
 
   const [addingChannel, setAddingChannel] = useState(false);
   const [channelLabel, setChannelLabel] = useState("");
@@ -140,8 +141,11 @@ export function MixerBoard() {
             ))}
           </MixGroup>
 
-          <div className="group-div" />
+          {backendNative !== false && <div className="group-div" />}
 
+          {/* Mixes need the native backend; hide them on the pactl
+           * fallback instead of showing strips that can't work. */}
+          {backendNative !== false && (
           <MixGroup
             kind="mix"
             icon="podcasts"
@@ -159,6 +163,7 @@ export function MixerBoard() {
               <BusStrip key={bus.name} bus={bus} />
             ))}
           </MixGroup>
+          )}
         </div>
       </div>
 

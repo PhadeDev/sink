@@ -140,7 +140,9 @@ pub fn load_profile(
                 continue;
             }
         }
-        let _ = state.backend.set_bus_members(&bus.name, &bus.channels);
+        if let Err(e) = state.backend.set_bus_members(&bus.name, &bus.channels) {
+            eprintln!("sink: profile members for mix {} failed: {e}", bus.name);
+        }
     }
 
     let (defs, assignments, outputs) = {

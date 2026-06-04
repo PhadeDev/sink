@@ -172,6 +172,12 @@ pub fn init_virtual_devices(
         applied.output_label = prefs.decorate(&mic.output_label);
         if let Err(e) = state.backend.set_mic_config(&applied) {
             eprintln!("sink: mic chain init failed: {e}");
+            // Keep the UI honest: no chain is running, so don't show the
+            // mic as enabled. In-memory only — the on-disk config keeps
+            // enabled=true so the next native-backend session restores it.
+            if let Ok(mut mixer) = state.lock_mixer() {
+                mixer.mic.enabled = false;
+            }
         }
     }
 

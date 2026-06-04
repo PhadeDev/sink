@@ -30,9 +30,13 @@ export function DspSlider({ label, min, max, step, value, defaultValue, unit, on
     [min, max, step, onChange],
   );
 
+  // Attached once; reads the latest handler through a ref (see Fader).
+  const setFromEventRef = useRef(setFromEvent);
+  setFromEventRef.current = setFromEvent;
+
   useEffect(() => {
     const move = (e: PointerEvent) => {
-      if (dragging.current) setFromEvent(e.clientX);
+      if (dragging.current) setFromEventRef.current(e.clientX);
     };
     const up = () => {
       dragging.current = false;
@@ -43,7 +47,7 @@ export function DspSlider({ label, min, max, step, value, defaultValue, unit, on
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-  }, [setFromEvent]);
+  }, []);
 
   const pct = ((value - min) / (max - min)) * 100;
   const defaultPct = ((defaultValue - min) / (max - min)) * 100;

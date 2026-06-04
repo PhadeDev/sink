@@ -85,6 +85,9 @@ interface MixerStore {
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
   error: string | null;
   initialized: boolean;
+  /** True on the native PipeWire backend; false on the pactl fallback
+   * (mixes/mic/monitoring unavailable). Null until known. */
+  backendNative: boolean | null;
 
   /** Create the virtual sinks and load initial state. */
   initialize: () => Promise<void>;
@@ -128,12 +131,16 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   activeProfile: null,
   error: null,
   initialized: false,
+  backendNative: null,
 
   initialize: async () => {
     if (get().initialized) return;
     try {
       await invoke("init_virtual_devices");
       set({ initialized: true, error: null });
+      void invoke<{ native: boolean }>("get_backend_info")
+        .then((i) => set({ backendNative: i.native }))
+        .catch(() => {});
       await Promise.all([
         get().fetchChannels(),
         get().fetchAppStreams(),

@@ -49,32 +49,38 @@ fn desktop_dirs() -> Vec<PathBuf> {
 /// Every installed icon theme directory (hicolor first, then whatever
 /// themes the distro/user installed — Papirus, Adwaita, breeze, …).
 /// Many apps only ship icons inside a theme, so hicolor alone misses them.
-fn icon_theme_dirs() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(data) = dirs::data_dir() {
-        roots.push(data.join("icons"));
-        roots.push(data.join("flatpak/exports/share/icons"));
-    }
-    roots.push(PathBuf::from("/usr/share/icons"));
-    roots.push(PathBuf::from("/var/lib/flatpak/exports/share/icons"));
-
-    let mut themes = Vec::new();
-    for root in roots {
-        // hicolor is the freedesktop fallback theme — search it first.
-        let hicolor = root.join("hicolor");
-        if hicolor.is_dir() {
-            themes.push(hicolor);
+fn icon_theme_dirs() -> &'static [PathBuf] {
+    // The theme set is stable for the process lifetime; scanning the icon
+    // roots once avoids re-walking them for every resolve cache miss
+    // (icon_name_to_path tries several candidate names per stream).
+    static THEMES: OnceLock<Vec<PathBuf>> = OnceLock::new();
+    THEMES.get_or_init(|| {
+        let mut roots = Vec::new();
+        if let Some(data) = dirs::data_dir() {
+            roots.push(data.join("icons"));
+            roots.push(data.join("flatpak/exports/share/icons"));
         }
-        if let Ok(read) = fs::read_dir(&root) {
-            for entry in read.flatten() {
-                let path = entry.path();
-                if path.is_dir() && path.file_name().is_some_and(|n| n != "hicolor") {
-                    themes.push(path);
+        roots.push(PathBuf::from("/usr/share/icons"));
+        roots.push(PathBuf::from("/var/lib/flatpak/exports/share/icons"));
+
+        let mut themes = Vec::new();
+        for root in roots {
+            // hicolor is the freedesktop fallback theme — search it first.
+            let hicolor = root.join("hicolor");
+            if hicolor.is_dir() {
+                themes.push(hicolor);
+            }
+            if let Ok(read) = fs::read_dir(&root) {
+                for entry in read.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() && path.file_name().is_some_and(|n| n != "hicolor") {
+                        themes.push(path);
+                    }
                 }
             }
         }
-    }
-    themes
+        themes
+    })
 }
 
 fn parse_desktop_file(path: &Path) -> Option<DesktopEntry> {

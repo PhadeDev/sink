@@ -629,11 +629,18 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
         return;
     };
     let mut s = state.borrow_mut();
+    // One name→id snapshot per reconcile instead of a linear node scan per
+    // lookup (this runs on every relevant registry event).
+    let node_ids: HashMap<String, u32> = s
+        .nodes
+        .values()
+        .filter_map(|n| n.props.get("node.name").map(|name| (name.clone(), n.id)))
+        .collect();
     // Live bus nodes: (bus name, node id).
     let bus_ids: Vec<(String, u32)> = s
         .bus_members
         .keys()
-        .filter_map(|bus| s.node_by_name(bus).map(|n| (bus.clone(), n.id)))
+        .filter_map(|bus| node_ids.get(bus).map(|id| (bus.clone(), *id)))
         .collect();
 
     // Live channel set: every virtual sink we created or adopted.
@@ -646,22 +653,20 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
 
     for sink_name in &channel_names {
         let sink_name = sink_name.as_str();
-        let channel_id = match s.node_by_name(sink_name) {
-            Some(n) => n.id,
+        let channel_id = match node_ids.get(sink_name) {
+            Some(id) => *id,
             None => continue,
         };
 
         // ---- output device links ----
         let explicit = s.channel_outputs.get(sink_name).cloned().flatten();
         let target_id = match explicit {
-            Some(name) if s.node_by_name(&name).is_some() => {
-                s.node_by_name(&name).map(|n| n.id)
-            }
+            Some(name) if node_ids.contains_key(&name) => node_ids.get(&name).copied(),
             _ => s
                 .default_sink_name
-                .clone()
-                .and_then(|name| s.node_by_name(&name))
-                .map(|n| n.id),
+                .as_ref()
+                .and_then(|name| node_ids.get(name))
+                .copied(),
         };
         let pairs = target_id
             .map(|t| desired_pairs(&s, channel_id, t))
@@ -716,12 +721,12 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
     // ---- monitor links (listen on the default output, session scoped) ----
     let default_id = s
         .default_sink_name
-        .clone()
-        .and_then(|name| s.node_by_name(&name))
-        .map(|n| n.id);
+        .as_ref()
+        .and_then(|name| node_ids.get(name))
+        .copied();
     let monitored: Vec<String> = s.monitored.iter().cloned().collect();
     for name in monitored {
-        let node_id = s.node_by_name(&name).map(|n| n.id);
+        let node_id = node_ids.get(&name).copied();
         let mut pairs = match (node_id, default_id) {
             (Some(node), Some(default)) => desired_pairs(&s, node, default),
             _ => Vec::new(),

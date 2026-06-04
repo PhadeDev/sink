@@ -49,7 +49,16 @@ export function BusStrip({ bus }: { bus: BusDef }) {
   const commitRename = () => {
     setEditing(false);
     const label = draft.trim();
-    if (label && label !== bus.label) void renameBus(bus.name, label);
+    if (label && label !== bus.label) {
+      void renameBus(bus.name, label).then(() => {
+        // Renaming recreates the node (fresh at 100%, unmuted) — re-apply
+        // this strip's level so the UI and backend stay in step.
+        if (volume !== 100)
+          void invoke("set_channel_volume", { sinkName: bus.name, volume }).catch(() => {});
+        if (muted)
+          void invoke("toggle_channel_mute", { sinkName: bus.name, muted: true }).catch(() => {});
+      });
+    }
   };
   const toggleMember = (channelName: string) => {
     const next = bus.channels.includes(channelName)

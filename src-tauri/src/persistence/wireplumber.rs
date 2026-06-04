@@ -24,8 +24,19 @@ pub fn conf_path() -> Result<PathBuf, SinkError> {
 }
 
 /// Escape a string for use inside a double-quoted SPA-JSON value.
+/// App names come from untrusted stream properties; control characters
+/// (newlines etc.) would break out of the quoted string, so drop them.
 fn escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            c if c.is_control() => {}
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// Render the conf fragment. Returns None when there are no assignments

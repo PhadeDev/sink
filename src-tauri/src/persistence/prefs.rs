@@ -37,9 +37,17 @@ impl Prefs {
             return Self::default();
         };
         fs::read_to_string(&path)
-            .ok()
-            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .map(|raw| Self::parse(&raw))
             .unwrap_or_default()
+    }
+
+    /// Parse stored prefs; malformed input degrades to defaults rather
+    /// than blocking launch.
+    fn parse(raw: &str) -> Self {
+        serde_json::from_str(raw).unwrap_or_else(|e| {
+            eprintln!("sink: ignoring malformed prefs: {e}");
+            Self::default()
+        })
     }
 
     pub fn save(&self) -> Result<(), SinkError> {
@@ -76,5 +84,21 @@ mod tests {
         assert_eq!(p.decorate("Game"), "Game (Sink)");
         p.device_label_style = DeviceLabelStyle::Prefix;
         assert_eq!(p.decorate("Game"), "Sink · Game");
+    }
+
+    #[test]
+    fn malformed_prefs_degrade_to_defaults() {
+        // Corrupt / partially-written files must never panic or block
+        // launch — they fall back to defaults.
+        assert_eq!(Prefs::parse(""), Prefs::default());
+        assert_eq!(Prefs::parse("{not json"), Prefs::default());
+        assert_eq!(Prefs::parse("[]"), Prefs::default());
+        assert_eq!(
+            Prefs::parse(r#"{"device_label_style":"bogus_style"}"#),
+            Prefs::default()
+        );
+        // Unknown fields are tolerated; known fields still apply.
+        let p = Prefs::parse(r#"{"device_label_style":"suffix","future_field":1}"#);
+        assert_eq!(p.device_label_style, DeviceLabelStyle::Suffix);
     }
 }

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -65,6 +65,16 @@ export function Popover({ open, onClose, children, side = "bottom", align = "sta
     setPosition({ left, top });
   }, [open, side, align]);
 
+  // Escape closes, like the scrim click.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   return (
     <>
       <span ref={markerRef} style={{ display: "none" }} aria-hidden="true" />
@@ -75,6 +85,7 @@ export function Popover({ open, onClose, children, side = "bottom", align = "sta
             <div
               ref={menuRef}
               className="menu"
+              role="menu"
               style={{
                 position: "fixed",
                 visibility: position ? "visible" : "hidden",

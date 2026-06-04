@@ -146,6 +146,20 @@ mod identity_tests {
     }
 
     #[test]
+    fn all_wrapper_chain_keeps_the_first_hit() {
+        // Every candidate is a wrapper (equal quality): the strict `>`
+        // ranking must keep the first one, not let later ties override it.
+        let (display, prop, value) = resolve(&[
+            ("application.name", "Electron"),
+            ("application.process.binary", "node"),
+            ("media.name", "java"),
+        ]);
+        assert_eq!(prop, "application.name");
+        assert_eq!(value, "Electron");
+        assert_eq!(display, "Electron");
+    }
+
+    #[test]
     fn real_browser_keeps_its_wrapper_name() {
         let (display, _, _) = resolve(&[
             ("application.name", "Chromium"),
