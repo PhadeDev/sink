@@ -340,6 +340,46 @@ body,
   border: 3px solid var(--bg-main);
 }
 
+/* ---------- Mixer top bar ---------- */
+.mixer-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-7);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+.mixer-out {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-meta);
+}
+.out-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--fg-primary);
+  font-family: inherit;
+  font-size: var(--fs-meta);
+}
+.out-pill:hover {
+  background: var(--bg-surface-hover);
+}
+.out-pill .ms {
+  font-size: 18px;
+  color: var(--fg-secondary);
+}
+.out-pill .ms.chev {
+  margin-left: var(--sp-1);
+  font-size: 16px;
+}
+
 /* ---------- Mixer strips ---------- */
 .strips {
   display: flex;
@@ -539,6 +579,25 @@ body,
 }
 .strip-route .ms {
   font-size: 13px;
+}
+/* clickable variant: the per-strip output picker */
+.strip-route-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s;
+}
+.strip-route-btn:hover {
+  color: var(--fg-primary);
+}
+.strip-route-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- Cards / rows (Apps screen) ---------- */

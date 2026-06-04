@@ -20,4 +20,15 @@ pub trait AudioBackend: Send + Sync {
     /// Not in the original trait sketch, but required by the `set_app_volume`
     /// command — commands are forbidden from calling pactl directly.
     fn set_app_volume(&self, stream_index: u32, volume_percent: u8) -> Result<(), SinkError>;
+
+    /// Route a channel's audio to a physical output device (Phase 4).
+    /// `None` means "follow the system default output" (which also gives
+    /// automatic failover when the device disappears). The native backend
+    /// creates passive in-graph links; the pactl fallback uses
+    /// module-loopback.
+    fn set_channel_output(
+        &self,
+        sink_name: &str,
+        output_name: Option<&str>,
+    ) -> Result<(), SinkError>;
 }

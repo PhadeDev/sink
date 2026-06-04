@@ -122,4 +122,18 @@ impl AudioBackend for PipeWireBackend {
             reply,
         })
     }
+
+    fn set_channel_output(
+        &self,
+        sink_name: &str,
+        output_name: Option<&str>,
+    ) -> Result<(), SinkError> {
+        let sink_name = sink_name.to_string();
+        let output_name = output_name.map(str::to_string);
+        self.request(|reply| Cmd::SetChannelOutput {
+            sink_name,
+            output_name,
+            reply,
+        })
+    }
 }

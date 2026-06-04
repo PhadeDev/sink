@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppStream, VirtualSink } from "../types";
+import type { AppStream, OutputDevice, VirtualSink } from "../types";
 
 // Faders fire on every pointer move; debounce backend calls per target so a
 // drag doesn't spawn a pactl subprocess per pixel. UI state updates
@@ -27,6 +27,14 @@ interface MixerStore {
   /** Live VU levels; stays empty under the pactl fallback backend. */
   levels: Levels;
   setLevels: (levels: Levels) => void;
+  /** Physical output devices. */
+  outputDevices: OutputDevice[];
+  /** Channel -> chosen output node name (null = follow system default). */
+  channelOutputs: Record<string, string | null>;
+  fetchOutputs: () => Promise<void>;
+  setChannelOutput: (sinkName: string, outputName: string | null) => Promise<void>;
+  /** Sonar-style "same device on all channels". */
+  setAllOutputs: (outputName: string | null) => Promise<void>;
   profiles: string[];
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
@@ -55,6 +63,8 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   appStreams: [],
   levels: {},
   setLevels: (levels) => set({ levels }),
+  outputDevices: [],
+  channelOutputs: {},
   profiles: [],
   activeProfile: null,
   error: null,
@@ -69,6 +79,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         get().fetchChannels(),
         get().fetchAppStreams(),
         get().fetchProfiles(),
+        get().fetchOutputs(),
       ]);
     } catch (e) {
       set({ error: String(e) });
@@ -153,6 +164,36 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
       { streamIndex, volume },
       (e) => set({ error: String(e) }),
     );
+  },
+
+  fetchOutputs: async () => {
+    try {
+      const [outputDevices, channelOutputs] = await Promise.all([
+        invoke<OutputDevice[]>("get_output_devices"),
+        invoke<Record<string, string | null>>("get_channel_outputs"),
+      ]);
+      set({ outputDevices, channelOutputs });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  setChannelOutput: async (sinkName, outputName) => {
+    set((s) => ({
+      channelOutputs: { ...s.channelOutputs, [sinkName]: outputName },
+    }));
+    try {
+      await invoke("set_channel_output", { sinkName, outputName: outputName ?? "" });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchOutputs();
+    }
+  },
+
+  setAllOutputs: async (outputName) => {
+    for (const channel of get().channels) {
+      await get().setChannelOutput(channel.name, outputName);
+    }
   },
 
   fetchProfiles: async () => {

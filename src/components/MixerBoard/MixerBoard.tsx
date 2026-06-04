@@ -1,9 +1,12 @@
 import { useMixerStore } from "../../store/mixer";
 import { ChannelStrip } from "./ChannelStrip";
+import { OutputSelect } from "./OutputSelect";
 
 export function MixerBoard() {
   const channels = useMixerStore((s) => s.channels);
   const appStreams = useMixerStore((s) => s.appStreams);
+  const channelOutputs = useMixerStore((s) => s.channelOutputs);
+  const setAllOutputs = useMixerStore((s) => s.setAllOutputs);
 
   if (channels.length === 0) {
     return (
@@ -23,8 +26,25 @@ export function MixerBoard() {
     }
   }
 
+  // The top pill mirrors Sonar's "same device on all output channels":
+  // shows the common choice, or "Mixed" when strips diverge.
+  const selections = channels.map((c) => channelOutputs[c.name] ?? null);
+  const allSame = selections.every((s) => s === selections[0]);
+
   return (
     <div className="content">
+      <div className="mixer-top">
+        <div className="mixer-out">
+          <span style={{ color: "var(--fg-muted)", fontSize: "var(--fs-caption)" }}>
+            OUTPUT
+          </span>
+          <OutputSelect
+            value={allSame ? (selections[0] ?? null) : null}
+            mixed={!allSame}
+            onChange={(o) => void setAllOutputs(o)}
+          />
+        </div>
+      </div>
       <div className="screen-scroll" style={{ padding: 0 }}>
         <div className="strips">
           {channels.map((channel) => (

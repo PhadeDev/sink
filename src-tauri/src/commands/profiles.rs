@@ -21,6 +21,7 @@ pub fn save_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
             name,
             channels: mixer.channels.clone(),
             assignments: mixer.assignments.clone(),
+            outputs: mixer.outputs.clone(),
         }
     };
     profiles::save(&profile).map_err(|e| e.to_string())
@@ -46,7 +47,14 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
             .map_err(|e| e.to_string())?;
     }
 
-    let assignments = {
+    // Apply the profile's output routing per channel.
+    for (name, output) in &profile.outputs.outputs {
+        if let Err(e) = state.backend.set_channel_output(name, output.as_deref()) {
+            eprintln!("sink: profile output routing for {name} failed: {e}");
+        }
+    }
+
+    let (assignments, outputs) = {
         let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
         // Keep the canonical channel list (defined by VIRTUAL_SINKS) but
         // adopt the profile's volume/mute per channel.
@@ -57,11 +65,13 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
             }
         }
         mixer.assignments = profile.assignments.clone();
+        mixer.outputs = profile.outputs.clone();
         mixer.auto_routed.clear();
-        mixer.assignments.clone()
+        (mixer.assignments.clone(), mixer.outputs.clone())
     };
 
     assignments.save().map_err(|e| e.to_string())?;
+    outputs.save().map_err(|e| e.to_string())?;
     wireplumber::write(&assignments).map_err(|e| e.to_string())?;
     Ok(())
 }

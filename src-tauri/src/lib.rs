@@ -45,6 +45,8 @@ pub fn run() {
             commands::devices::get_output_devices,
             commands::devices::init_virtual_devices,
             commands::devices::teardown_virtual_devices,
+            commands::devices::get_channel_outputs,
+            commands::devices::set_channel_output,
             commands::routing::route_app_to_channel,
             commands::routing::set_channel_volume,
             commands::routing::toggle_channel_mute,

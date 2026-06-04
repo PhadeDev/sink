@@ -21,6 +21,9 @@ pub struct PactlBackend {
     /// `create_virtual_sink` returns `()` per the trait, so module indices
     /// are tracked here instead of in `MixerState`.
     modules: Mutex<HashMap<String, u32>>,
+    /// channel sink name -> index of its `module-loopback` (Phase 4 output
+    /// routing fallback; the native backend uses passive links instead).
+    loopbacks: Mutex<HashMap<String, u32>>,
 }
 
 // ---- JSON shapes for `pactl --format=json` output ----
@@ -64,6 +67,7 @@ impl PactlBackend {
     pub fn new() -> Self {
         Self {
             modules: Mutex::new(HashMap::new()),
+            loopbacks: Mutex::new(HashMap::new()),
         }
     }
 
@@ -290,6 +294,43 @@ impl AudioBackend for PactlBackend {
             &stream_index.to_string(),
             &format!("{volume_percent}%"),
         ])?;
+        Ok(())
+    }
+
+    fn set_channel_output(
+        &self,
+        sink_name: &str,
+        output_name: Option<&str>,
+    ) -> Result<(), SinkError> {
+        // Replace any existing loopback for this channel.
+        let existing = {
+            let mut loopbacks = self
+                .loopbacks
+                .lock()
+                .map_err(|_| SinkError::Parse("loopback table lock poisoned".into()))?;
+            loopbacks.remove(sink_name)
+        };
+        if let Some(index) = existing {
+            // Best effort: the module may already be gone.
+            let _ = Self::run(&["unload-module", &index.to_string()]);
+        }
+
+        let target = output_name.unwrap_or("@DEFAULT_SINK@");
+        let stdout = Self::run(&[
+            "load-module",
+            "module-loopback",
+            &format!("source={sink_name}.monitor"),
+            &format!("sink={target}"),
+            "source_dont_move=true",
+        ])?;
+        let module_index: u32 = stdout
+            .trim()
+            .parse()
+            .map_err(|_| SinkError::Parse(format!("load-module returned {stdout:?}")))?;
+        self.loopbacks
+            .lock()
+            .map_err(|_| SinkError::Parse("loopback table lock poisoned".into()))?
+            .insert(sink_name.to_string(), module_index);
         Ok(())
     }
 }

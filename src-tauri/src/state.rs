@@ -17,6 +17,7 @@ impl AppState {
         let mixer = MixerState {
             assignments: crate::persistence::assignments::Assignments::load(),
             aliases: crate::persistence::aliases::Aliases::load(),
+            outputs: crate::persistence::outputs::ChannelOutputs::load(),
             ..MixerState::default()
         };
         Self {

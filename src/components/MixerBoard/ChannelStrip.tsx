@@ -3,6 +3,7 @@ import type { VirtualSink } from "../../types";
 import { MAX_VOLUME } from "../../types";
 import { channelIcon, Ms } from "../Icons";
 import { Fader } from "./Fader";
+import { OutputSelect } from "./OutputSelect";
 import { VuMeter } from "./VuMeter";
 
 function volToDb(v: number): string {
@@ -25,6 +26,8 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const setChannelVolume = useMixerStore((s) => s.setChannelVolume);
   const toggleMute = useMixerStore((s) => s.toggleMute);
   const level = useMixerStore((s) => s.levels[channel.name]);
+  const output = useMixerStore((s) => s.channelOutputs[channel.name] ?? null);
+  const setChannelOutput = useMixerStore((s) => s.setChannelOutput);
 
   const [left, right] = level ?? [0, 0];
 
@@ -67,10 +70,11 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
         </button>
       </div>
 
-      <div className="strip-route">
-        <Ms name="arrow_forward" />
-        <span>System out</span>
-      </div>
+      <OutputSelect
+        compact
+        value={output}
+        onChange={(o) => void setChannelOutput(channel.name, o)}
+      />
     </div>
   );
 }

@@ -15,6 +15,8 @@ pub struct MixerState {
     pub assignments: Assignments,
     /// User-chosen display names for discovered apps (persisted to disk).
     pub aliases: Aliases,
+    /// Per-channel output device choices (persisted to disk).
+    pub outputs: crate::persistence::outputs::ChannelOutputs,
     /// Stream indices already considered for auto-routing this session.
     /// Each stream is enforced once, on first sight, so a user moving a
     /// stream elsewhere (here or in pavucontrol) isn't fought every poll.

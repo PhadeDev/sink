@@ -7,14 +7,17 @@ use crate::audio::types::VirtualSink;
 use crate::error::SinkError;
 use crate::persistence::assignments::Assignments;
 
-/// A named snapshot of the mixer: channel volumes/mutes plus the
-/// app→channel assignment set. Stored as JSON in
+/// A named snapshot of the mixer: channel volumes/mutes, the app→channel
+/// assignment set, and per-channel output choices. Stored as JSON in
 /// `$XDG_CONFIG_HOME/sink/profiles/<name>.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Profile {
     pub name: String,
     pub channels: Vec<VirtualSink>,
     pub assignments: Assignments,
+    /// Added in Phase 4; default keeps older profile files loadable.
+    #[serde(default)]
+    pub outputs: crate::persistence::outputs::ChannelOutputs,
 }
 
 fn profiles_dir() -> Result<PathBuf, SinkError> {

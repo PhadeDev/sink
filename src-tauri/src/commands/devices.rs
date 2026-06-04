@@ -89,9 +89,63 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
-    let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
-    mixer.init_defaults();
+    let outputs = {
+        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        mixer.init_defaults();
+        mixer.outputs.clone()
+    };
+
+    // Wire every channel to its saved output (or the system default) so
+    // channels are audible from the start.
+    for (name, _) in VIRTUAL_SINKS {
+        if let Err(e) = state.backend.set_channel_output(name, outputs.get(name)) {
+            eprintln!("sink: output routing for {name} failed: {e}");
+        }
+    }
     Ok(())
+}
+
+/// Current per-channel output choices (None = follow system default).
+#[tauri::command]
+pub fn get_channel_outputs(
+    state: State<'_, AppState>,
+) -> Result<std::collections::HashMap<String, Option<String>>, String> {
+    let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    Ok(VIRTUAL_SINKS
+        .iter()
+        .map(|(name, _)| {
+            (
+                (*name).to_string(),
+                mixer.outputs.get(name).map(str::to_string),
+            )
+        })
+        .collect())
+}
+
+/// Route a channel to an output device; empty `output_name` = follow the
+/// system default. Persisted across restarts.
+#[tauri::command]
+pub fn set_channel_output(
+    state: State<'_, AppState>,
+    sink_name: String,
+    output_name: String,
+) -> Result<(), String> {
+    let output = if output_name.is_empty() {
+        None
+    } else {
+        Some(output_name)
+    };
+    state
+        .backend
+        .set_channel_output(&sink_name, output.as_deref())
+        .map_err(|e| e.to_string())?;
+
+    let outputs = {
+        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        mixer.outputs.set(&sink_name, output);
+        mixer.outputs.clone()
+    };
+    outputs.save().map_err(|e| e.to_string())
 }
 
 /// Destroy all virtual sinks. Called before the app exits.

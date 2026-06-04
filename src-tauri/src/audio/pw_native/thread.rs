@@ -38,6 +38,17 @@ pub enum Cmd {
     SetNodeMuteByName { name: String, muted: bool, reply: Reply<()> },
     SetNodeVolumeById { id: u32, percent: u8, reply: Reply<()> },
     MoveStream { id: u32, sink_name: String, reply: Reply<()> },
+    /// Route a channel's monitor to an output device (None = follow default).
+    SetChannelOutput { sink_name: String, output_name: Option<String>, reply: Reply<()> },
+}
+
+struct PortEntry {
+    id: u32,
+    node_id: u32,
+    /// "in" (playback/sink input port) or "out" (source/monitor port).
+    direction: String,
+    /// e.g. "FL", "FR", "MONO".
+    channel: Option<String>,
 }
 
 struct NodeEntry {
@@ -69,6 +80,12 @@ struct State {
     pending_creates: HashMap<String, Vec<Reply<()>>>,
     /// Live meter capture streams per virtual sink name.
     meters: HashMap<String, MeterHandle>,
+    /// All known ports, for monitor→output linking.
+    ports: HashMap<u32, PortEntry>,
+    /// Channel sink name -> chosen output node.name (None = follow default).
+    channel_outputs: HashMap<String, Option<String>>,
+    /// Channel sink name -> live loopback links: (monitor port, input port, proxy).
+    channel_links: HashMap<String, Vec<(u32, u32, pw::link::Link)>>,
 }
 
 impl State {
@@ -136,14 +153,26 @@ fn setup_and_run(
         .global_remove({
             let state = state.clone();
             move |id| {
-                let mut s = state.borrow_mut();
-                s.links.remove(&id);
-                if let Some(node) = s.nodes.remove(&id) {
-                    if let Some(name) = node.props.get("node.name") {
-                        let name = name.clone();
-                        s.meters.remove(&name);
-                        s.adopted_sinks.remove(&name);
+                let removed_sink = {
+                    let mut s = state.borrow_mut();
+                    s.links.remove(&id);
+                    s.ports.remove(&id);
+                    match s.nodes.remove(&id) {
+                        Some(node) if node.media_class == SINK_CLASS => {
+                            if let Some(name) = node.props.get("node.name") {
+                                let name = name.clone();
+                                s.meters.remove(&name);
+                                s.adopted_sinks.remove(&name);
+                            }
+                            true
+                        }
+                        _ => false,
                     }
+                };
+                // An output device vanished (or one of our sinks died):
+                // relink so affected channels fail over to the default.
+                if removed_sink {
+                    ensure_all_links(&state);
                 }
             }
         })
@@ -173,6 +202,31 @@ fn on_global(
 ) {
     match global.type_ {
         ObjectType::Node => on_node(state, registry, core, levels, global),
+        ObjectType::Port => {
+            let Some(props) = global.props else { return };
+            let Some(node_id) = props.get("node.id").and_then(|v| v.parse().ok()) else {
+                return;
+            };
+            let entry = PortEntry {
+                id: global.id,
+                node_id,
+                direction: props.get("port.direction").unwrap_or_default().to_string(),
+                channel: props.get("audio.channel").map(str::to_string),
+            };
+            {
+                let mut s = state.borrow_mut();
+                s.ports.insert(global.id, entry);
+                // Only sink-ish nodes matter for loopback wiring.
+                let relevant = s
+                    .nodes
+                    .get(&node_id)
+                    .is_some_and(|n| n.media_class == SINK_CLASS);
+                if !relevant {
+                    return;
+                }
+            }
+            ensure_all_links(state);
+        }
         ObjectType::Link => {
             let Some(props) = global.props else { return };
             let out = props.get("link.output.node").and_then(|v| v.parse().ok());
@@ -202,7 +256,17 @@ fn on_global(
                                 .as_str()
                                 .map(str::to_string)
                         });
-                        state_m.borrow_mut().default_sink_name = name;
+                        let changed = {
+                            let mut s = state_m.borrow_mut();
+                            let changed = s.default_sink_name != name;
+                            s.default_sink_name = name;
+                            changed
+                        };
+                        // Channels following the default must relink
+                        // (Sonar-style automatic device failover).
+                        if changed {
+                            ensure_all_links(&state_m);
+                        }
                     }
                     0
                 })
@@ -302,6 +366,118 @@ fn on_node(
                 Err(e) => eprintln!("sink: meter for {node_name} failed: {e}"),
             }
         }
+        drop(s);
+        ensure_all_links(state);
+        return;
+    }
+    drop(s);
+    // A new hardware sink may be the (returning) target of a channel.
+    if media_class == SINK_CLASS {
+        ensure_all_links(state);
+    }
+}
+
+/// Reconcile loopback links for every virtual channel: each channel's
+/// monitor ports are linked to its chosen output device's playback ports
+/// (or the system default when unset / the chosen device is gone).
+/// Idempotent — existing correct links are left untouched.
+fn ensure_all_links(state: &Rc<RefCell<State>>) {
+    let Some(core) = CORE.with(|c| c.borrow().clone()) else {
+        return;
+    };
+    let mut s = state.borrow_mut();
+
+    for (sink_name, _) in crate::audio::types::VIRTUAL_SINKS {
+        // Resolve the desired output: explicit choice if its node exists,
+        // otherwise the system default (automatic failover).
+        let explicit = s.channel_outputs.get(sink_name).cloned().flatten();
+        let target_name = match explicit {
+            Some(name) if s.node_by_name(&name).is_some() => Some(name),
+            _ => s.default_sink_name.clone(),
+        };
+
+        let pairs: Vec<(u32, u32)> = (|| {
+            let target_name = target_name?;
+            let channel_node = s.node_by_name(sink_name)?;
+            let target_node = s.node_by_name(&target_name)?;
+            if channel_node.id == target_node.id {
+                return None;
+            }
+            let mut monitors: Vec<&PortEntry> = s
+                .ports
+                .values()
+                .filter(|p| p.node_id == channel_node.id && p.direction == "out")
+                .collect();
+            let mut inputs: Vec<&PortEntry> = s
+                .ports
+                .values()
+                .filter(|p| p.node_id == target_node.id && p.direction == "in")
+                .collect();
+            monitors.sort_by_key(|p| p.id);
+            inputs.sort_by_key(|p| p.id);
+            if monitors.is_empty() || inputs.is_empty() {
+                return None;
+            }
+            // Pair by audio.channel where possible, else wrap by index
+            // (covers mono and odd channel maps).
+            let pairs = monitors
+                .iter()
+                .enumerate()
+                .filter_map(|(i, m)| {
+                    let by_channel = m.channel.as_ref().and_then(|ch| {
+                        inputs
+                            .iter()
+                            .find(|p| p.channel.as_ref() == Some(ch))
+                            .copied()
+                    });
+                    // Plain index fallback covers mono and odd channel maps.
+                    let input = by_channel.or_else(|| inputs.get(i % inputs.len()).copied())?;
+                    Some((m.id, input.id))
+                })
+                .collect::<Vec<_>>();
+            Some(pairs)
+        })()
+        .unwrap_or_default();
+
+        let current: Vec<(u32, u32)> = s
+            .channel_links
+            .get(sink_name)
+            .map(|links| links.iter().map(|(o, i, _)| (*o, *i)).collect())
+            .unwrap_or_default();
+        if current == pairs {
+            continue;
+        }
+
+        // Drop stale links (proxies destroy the server objects), then build
+        // the desired set.
+        s.channel_links.remove(sink_name);
+        let mut created = Vec::new();
+        let (out_node, in_node) = match (
+            s.node_by_name(sink_name).map(|n| n.id),
+            pairs.first().and_then(|(_, input)| {
+                s.ports.get(input).map(|p| p.node_id)
+            }),
+        ) {
+            (Some(o), Some(i)) => (o, i),
+            _ => continue,
+        };
+        for (monitor_port, input_port) in &pairs {
+            match core.create_object::<pw::link::Link>(
+                "link-factory",
+                &pw::properties::properties! {
+                    "link.output.node" => out_node.to_string(),
+                    "link.output.port" => monitor_port.to_string(),
+                    "link.input.node" => in_node.to_string(),
+                    "link.input.port" => input_port.to_string(),
+                },
+            ) {
+                Ok(link) => created.push((*monitor_port, *input_port, link)),
+                Err(e) => eprintln!("sink: link {sink_name} failed: {e}"),
+            }
+        }
+        if !created.is_empty() {
+            s.channel_links.insert(sink_name.to_string(), created);
+        }
     }
 }
 
@@ -350,6 +526,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         Cmd::DestroySink { name, reply } => {
             let mut s = state.borrow_mut();
             s.meters.remove(&name);
+            s.channel_links.remove(&name);
             if let Some(proxy) = s.owned_sinks.remove(&name) {
                 match CORE.with(|c| c.borrow().clone()) {
                     Some(core) => {
@@ -438,6 +615,18 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         Cmd::SetNodeVolumeById { id, percent, reply } => {
             let s = state.borrow();
             let _ = reply.send(set_props(s.nodes.get(&id), Some(percent), None));
+        }
+        Cmd::SetChannelOutput { sink_name, output_name, reply } => {
+            if !is_virtual_sink(&sink_name) {
+                let _ = reply.send(Err(SinkError::UnknownSink(sink_name)));
+                return;
+            }
+            state
+                .borrow_mut()
+                .channel_outputs
+                .insert(sink_name, output_name);
+            ensure_all_links(state);
+            let _ = reply.send(Ok(()));
         }
         Cmd::MoveStream { id, sink_name, reply } => {
             let s = state.borrow();
