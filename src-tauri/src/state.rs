@@ -6,11 +6,13 @@ use crate::mixer::state::MixerState;
 /// Application state managed by Tauri and shared across commands and the tray.
 pub struct AppState {
     pub backend: Arc<dyn AudioBackend>,
+    /// True when the native PipeWire backend is driving (vs pactl fallback).
+    pub backend_native: bool,
     pub mixer: Mutex<MixerState>,
 }
 
 impl AppState {
-    pub fn new(backend: Arc<dyn AudioBackend>) -> Self {
+    pub fn new(backend: Arc<dyn AudioBackend>, backend_native: bool) -> Self {
         // Saved assignments are loaded eagerly so auto-routing can enforce
         // them as soon as the sinks exist.
         let mixer = MixerState {
@@ -25,6 +27,7 @@ impl AppState {
         };
         Self {
             backend,
+            backend_native,
             mixer: Mutex::new(mixer),
         }
     }

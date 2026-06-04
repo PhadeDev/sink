@@ -30,10 +30,14 @@ function AddChannelStrip() {
 
   return (
     <>
-      <button className="strip strip-add" onClick={() => setOpen(true)} title="Add a channel">
-        <Ms name="add" style={{ fontSize: 22 }} />
-        <span className="strip-add-label">Add channel</span>
-      </button>
+      {/* Fills the gap between channels and the mic strip; the ghost strip
+          only materializes when the empty space is hovered. */}
+      <div className="add-zone">
+        <button className="strip strip-add" onClick={() => setOpen(true)} title="Add a channel">
+          <Ms name="add" style={{ fontSize: 22 }} />
+          <span className="strip-add-label">Add channel</span>
+        </button>
+      </div>
 
       <Modal open={open} onClose={close} title="New channel">
         <input
@@ -127,7 +131,7 @@ export function MixerBoard() {
               appCount={counts.get(channel.name) ?? 0}
             />
           ))}
-          {channels.length < MAX_CHANNELS && <AddChannelStrip />}
+          {channels.length < MAX_CHANNELS ? <AddChannelStrip /> : <div className="add-zone" />}
           <MicStrip />
         </div>
       </div>

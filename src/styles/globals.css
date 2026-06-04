@@ -446,6 +446,14 @@ body,
   padding: 4px 6px;
   font-size: var(--fs-meta);
 }
+/* empty zone between channels and the capture side; reveals the ghost
+   strip on hover and pushes the mic strip to the right edge */
+.add-zone {
+  flex: 1 1 auto;
+  min-width: 122px;
+  display: flex;
+  align-items: stretch;
+}
 .strip-add {
   border-style: dashed;
   background: transparent;
@@ -455,7 +463,12 @@ body,
   color: var(--fg-muted);
   cursor: pointer;
   font-family: inherit;
-  transition: color 0.12s, border-color 0.12s;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.12s, border-color 0.12s;
+}
+.add-zone:hover .strip-add,
+.strip-add:focus-visible {
+  opacity: 1;
 }
 .strip-add:hover {
   color: var(--fg-secondary);
@@ -463,6 +476,10 @@ body,
 }
 .strip-add-label {
   font-size: var(--fs-caption);
+}
+
+.rail-spacer {
+  flex: 1;
 }
 
 .strip-head {

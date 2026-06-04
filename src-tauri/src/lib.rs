@@ -34,7 +34,8 @@ pub fn run() {
                 (Arc::new(PactlBackend::new()), None)
             }
         };
-    let app_state = AppState::new(backend);
+    let backend_native = levels.is_some();
+    let app_state = AppState::new(backend, backend_native);
 
     let result = tauri::Builder::default()
         .manage(app_state)
@@ -69,6 +70,9 @@ pub fn run() {
             commands::profiles::set_profile_trigger,
             commands::profiles::create_blank_profile,
             commands::profiles::get_active_profile,
+            commands::settings::get_backend_info,
+            commands::settings::get_autostart,
+            commands::settings::set_autostart,
         ])
         .setup(move |app| {
             build_tray(app)?;
