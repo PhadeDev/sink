@@ -960,7 +960,21 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     streams.params.apply(&config);
                 }
 
-                let source_exists = s.node_by_name(MIC_NODE).is_some();
+                // Renaming the published mic recreates the node so other
+                // apps see the new description immediately.
+                let needs_recreate = config.enabled
+                    && s.mic_source.is_some()
+                    && prev.output_label != config.output_label;
+                if needs_recreate {
+                    s.mic_streams = None;
+                    s.mic_links.clear();
+                    if let Some(proxy) = s.mic_source.take() {
+                        if let Some(core) = CORE.with(|c| c.borrow().clone()) {
+                            let _ = core.destroy_object(proxy);
+                        }
+                    }
+                }
+
                 let needs_create = config.enabled && s.mic_source.is_none();
                 let needs_destroy = !config.enabled && s.mic_source.is_some();
                 let needs_rebuild = config.enabled
