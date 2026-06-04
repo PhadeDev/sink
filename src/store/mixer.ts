@@ -88,6 +88,10 @@ interface MixerStore {
   /** True on the native PipeWire backend; false on the pactl fallback
    * (mixes/mic/monitoring unavailable). Null until known. */
   backendNative: boolean | null;
+  /** First-run tutorial visible. */
+  showOnboarding: boolean;
+  /** Close the tutorial; blank = collapse to a single starter channel. */
+  finishOnboarding: (blank: boolean) => Promise<void>;
 
   /** Create the virtual sinks and load initial state. */
   initialize: () => Promise<void>;
@@ -132,6 +136,28 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   error: null,
   initialized: false,
   backendNative: null,
+  showOnboarding: false,
+
+  finishOnboarding: async (blank) => {
+    set({ showOnboarding: false });
+    try {
+      await invoke("set_onboarded");
+      if (blank) {
+        // Collapse the seeded defaults to a single starter channel; the
+        // active profile autosaves the result.
+        const channels = get().channels;
+        for (const c of channels.slice(1)) {
+          await get().removeChannel(c.name);
+        }
+        if (channels.length > 0) {
+          await get().renameChannel(channels[0].name, "Main");
+          await get().setChannelIcon(channels[0].name, "graphic_eq");
+        }
+      }
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
 
   initialize: async () => {
     if (get().initialized) return;
@@ -140,6 +166,11 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
       set({ initialized: true, error: null });
       void invoke<{ native: boolean }>("get_backend_info")
         .then((i) => set({ backendNative: i.native }))
+        .catch(() => {});
+      void invoke<{ onboarded: boolean }>("get_prefs")
+        .then((p) => {
+          if (!p.onboarded) set({ showOnboarding: true });
+        })
         .catch(() => {});
       await Promise.all([
         get().fetchChannels(),

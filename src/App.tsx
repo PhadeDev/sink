@@ -3,6 +3,7 @@ import { TitleBar } from "./components/TitleBar/TitleBar";
 import { MixerBoard } from "./components/MixerBoard/MixerBoard";
 import { AppList } from "./components/AppList/AppList";
 import { MicScreen } from "./components/Mic/MicScreen";
+import { OnboardingModal } from "./components/Onboarding/OnboardingModal";
 import { SettingsScreen } from "./components/Settings/SettingsScreen";
 import { Ms } from "./components/Icons";
 import { useAudio } from "./hooks/useAudio";
@@ -68,6 +69,8 @@ export default function App() {
           <SettingsScreen />
         )}
       </div>
+
+      <OnboardingModal />
     </div>
   );
 }

@@ -83,6 +83,7 @@ pub fn run() {
             commands::settings::set_default_input,
             commands::settings::get_prefs,
             commands::settings::set_device_label_style,
+            commands::settings::set_onboarded,
             commands::settings::reset_app,
         ])
         .setup(move |app| {

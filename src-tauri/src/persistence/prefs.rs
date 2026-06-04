@@ -23,6 +23,9 @@ pub enum DeviceLabelStyle {
 pub struct Prefs {
     #[serde(default)]
     pub device_label_style: DeviceLabelStyle,
+    /// First-run tutorial completed (false = show it on launch).
+    #[serde(default)]
+    pub onboarded: bool,
 }
 
 impl Prefs {

@@ -55,6 +55,18 @@ pub fn set_device_label_style(
     prefs.save().map_err(|e| e.to_string())
 }
 
+/// Mark the first-run tutorial as completed (never shown again, until a
+/// factory reset).
+#[tauri::command]
+pub fn set_onboarded(state: State<'_, AppState>) -> Result<(), String> {
+    let prefs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.prefs.onboarded = true;
+        mixer.prefs.clone()
+    };
+    prefs.save().map_err(|e| e.to_string())
+}
+
 /// Factory reset: tear down our audio nodes, wipe every saved file, undo
 /// autostart, and relaunch as if freshly installed.
 #[tauri::command]

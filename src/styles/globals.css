@@ -1439,3 +1439,82 @@ body,
   pointer-events: none;
   user-select: none;
 }
+
+/* ---------- First-run tutorial ---------- */
+.ob-modal {
+  width: min(440px, calc(100vw - 48px));
+}
+.ob-icon {
+  align-self: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-xl);
+  background: var(--accent-light);
+  color: var(--accent-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ob-icon .ms {
+  font-size: 30px;
+}
+.ob-body {
+  text-align: center;
+  min-height: 88px;
+}
+.ob-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.ob-dots {
+  display: flex;
+  gap: 6px;
+}
+.ob-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.ob-dot.on {
+  background: var(--accent-hover);
+}
+.ob-choices {
+  display: flex;
+  gap: var(--sp-3);
+}
+.ob-choice {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-5) var(--sp-4);
+  border-radius: var(--r-xl);
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--fg-primary);
+  text-align: center;
+  transition: border-color 0.12s, background 0.12s;
+}
+.ob-choice:hover {
+  border-color: var(--accent);
+  background: var(--bg-surface-hover);
+}
+.ob-choice .ms {
+  font-size: 26px;
+  color: var(--accent-hover);
+}
+.ob-choice-title {
+  font-weight: 600;
+  font-size: var(--fs-body);
+}
+.ob-choice-sub {
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+}
