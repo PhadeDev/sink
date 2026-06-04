@@ -1,0 +1,191 @@
+use std::fs;
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
+use crate::error::SinkError;
+
+/// Sink node names reserved by Sink itself (not user channels).
+pub const RESERVED_SINK_NAMES: [&str; 2] = ["sink_mic", "sink_stream"];
+/// Upper bound on user channels (level-meter slots are budgeted for this).
+pub const MAX_CHANNELS: usize = 10;
+
+/// One user-defined mixer channel.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChannelDef {
+    /// PipeWire sink node name, e.g. "sink_game". Stable once created.
+    pub name: String,
+    /// Display label, e.g. "Game". Renameable.
+    pub label: String,
+}
+
+/// The user's channel set, stored as JSON at
+/// `$XDG_CONFIG_HOME/sink/channels.json`. Defaults to the classic four.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Channels {
+    pub channels: Vec<ChannelDef>,
+}
+
+impl Default for Channels {
+    fn default() -> Self {
+        let def = |name: &str, label: &str| ChannelDef {
+            name: name.to_string(),
+            label: label.to_string(),
+        };
+        Self {
+            channels: vec![
+                def("sink_game", "Game"),
+                def("sink_chat", "Chat"),
+                def("sink_music", "Music"),
+                def("sink_system", "System"),
+            ],
+        }
+    }
+}
+
+fn slugify(label: &str) -> String {
+    let slug: String = label
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect::<String>()
+        .split('_')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("_");
+    if slug.is_empty() {
+        "channel".to_string()
+    } else {
+        slug
+    }
+}
+
+impl Channels {
+    pub fn config_path() -> Result<PathBuf, SinkError> {
+        let dir = dirs::config_dir()
+            .ok_or_else(|| SinkError::Config("cannot resolve the user config directory".into()))?;
+        Ok(dir.join("sink").join("channels.json"))
+    }
+
+    pub fn load() -> Self {
+        let Ok(path) = Self::config_path() else {
+            return Self::default();
+        };
+        match fs::read_to_string(&path) {
+            Ok(raw) => serde_json::from_str::<Self>(&raw)
+                .ok()
+                .filter(|c| !c.channels.is_empty())
+                .unwrap_or_default(),
+            Err(_) => Self::default(),
+        }
+    }
+
+    pub fn save(&self) -> Result<(), SinkError> {
+        let path = Self::config_path()?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| SinkError::Config(format!("serialize channels: {e}")))?;
+        fs::write(&path, json)?;
+        Ok(())
+    }
+
+    pub fn get(&self, name: &str) -> Option<&ChannelDef> {
+        self.channels.iter().find(|c| c.name == name)
+    }
+
+    /// Add a channel for `label`, generating a unique reserved-safe sink
+    /// name. Returns the new definition.
+    pub fn add(&mut self, label: &str) -> Result<ChannelDef, SinkError> {
+        let label = label.trim();
+        if label.is_empty() || label.len() > 24 {
+            return Err(SinkError::Config("channel label must be 1–24 characters".into()));
+        }
+        if self.channels.len() >= MAX_CHANNELS {
+            return Err(SinkError::Config(format!(
+                "at most {MAX_CHANNELS} channels are supported"
+            )));
+        }
+        let base = format!("sink_{}", slugify(label));
+        let mut name = base.clone();
+        let mut counter = 2;
+        while self.get(&name).is_some() || RESERVED_SINK_NAMES.contains(&name.as_str()) {
+            name = format!("{base}_{counter}");
+            counter += 1;
+        }
+        let def = ChannelDef {
+            name,
+            label: label.to_string(),
+        };
+        self.channels.push(def.clone());
+        Ok(def)
+    }
+
+    pub fn rename(&mut self, name: &str, label: &str) -> Result<(), SinkError> {
+        let label = label.trim();
+        if label.is_empty() || label.len() > 24 {
+            return Err(SinkError::Config("channel label must be 1–24 characters".into()));
+        }
+        let def = self
+            .channels
+            .iter_mut()
+            .find(|c| c.name == name)
+            .ok_or_else(|| SinkError::UnknownSink(name.to_string()))?;
+        def.label = label.to_string();
+        Ok(())
+    }
+
+    pub fn remove(&mut self, name: &str) -> Result<(), SinkError> {
+        if self.channels.len() <= 1 {
+            return Err(SinkError::Config("at least one channel is required".into()));
+        }
+        let before = self.channels.len();
+        self.channels.retain(|c| c.name != name);
+        if self.channels.len() == before {
+            return Err(SinkError::UnknownSink(name.to_string()));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_to_classic_four() {
+        let c = Channels::default();
+        assert_eq!(c.channels.len(), 4);
+        assert_eq!(c.channels[0].name, "sink_game");
+    }
+
+    #[test]
+    fn add_generates_unique_safe_names() {
+        let mut c = Channels::default();
+        let d = c.add("Voice Chat!").expect("adds");
+        assert_eq!(d.name, "sink_voice_chat");
+        let d2 = c.add("Voice Chat").expect("adds duplicate label");
+        assert_eq!(d2.name, "sink_voice_chat_2");
+        // Reserved collision: label "mic" must not produce sink_mic.
+        let d3 = c.add("Mic").expect("adds");
+        assert_eq!(d3.name, "sink_mic_2");
+    }
+
+    #[test]
+    fn remove_keeps_at_least_one() {
+        let mut c = Channels::default();
+        c.remove("sink_game").expect("removes");
+        c.remove("sink_chat").expect("removes");
+        c.remove("sink_music").expect("removes");
+        assert!(c.remove("sink_system").is_err(), "last channel must stay");
+    }
+
+    #[test]
+    fn rename_updates_label_only() {
+        let mut c = Channels::default();
+        c.rename("sink_game", "Gaems").expect("renames");
+        assert_eq!(c.get("sink_game").expect("exists").label, "Gaems");
+        assert!(c.rename("sink_nope", "X").is_err());
+    }
+}

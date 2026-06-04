@@ -20,7 +20,7 @@ use crate::audio::pw_native::levels::LevelStore;
 use crate::audio::pw_native::meter::MeterHandle;
 use crate::audio::pw_native::mic::{MicStreams, MIC_NODE};
 use crate::audio::pw_native::pods;
-use crate::audio::types::{is_virtual_sink, label_for, AppStream, MicConfig, OutputDevice};
+use crate::audio::types::{is_virtual_sink, AppStream, MicConfig, OutputDevice};
 use crate::error::SinkError;
 
 const STREAM_CLASS: &str = "Stream/Output/Audio";
@@ -39,7 +39,7 @@ pub const STREAM_MIX_NODE: &str = "sink_stream";
 type Reply<T> = mpsc::Sender<Result<T, SinkError>>;
 
 pub enum Cmd {
-    CreateSink { name: String, reply: Reply<()> },
+    CreateSink { name: String, label: String, reply: Reply<()> },
     DestroySink { name: String, reply: Reply<()> },
     ListStreams { reply: Reply<Vec<AppStream>> },
     ListOutputs { reply: Reply<Vec<OutputDevice>> },
@@ -74,6 +74,8 @@ struct NodeEntry {
     volume_percent: u8,
     channels: usize,
     muted: bool,
+    /// True while the node is in the Running state (actively streaming).
+    active: bool,
 }
 
 #[derive(Default)]
@@ -364,11 +366,20 @@ fn on_node(
         return;
     };
 
-    // Track volume/mute through Props param events.
+    // Track volume/mute through Props param events, and the running state
+    // through info events (drives the app-list activity indicator).
     let state_p = state.clone();
+    let state_i = state.clone();
     let node_id = global.id;
     let listener = proxy
         .add_listener_local()
+        .info(move |info| {
+            let running = matches!(info.state(), pw::node::NodeState::Running);
+            let mut s = state_i.borrow_mut();
+            if let Some(entry) = s.nodes.get_mut(&node_id) {
+                entry.active = running;
+            }
+        })
         .param(move |_seq, id, _index, _next, param| {
             if id != pw::spa::param::ParamType::Props {
                 return;
@@ -401,6 +412,7 @@ fn on_node(
         volume_percent: 100,
         channels: 2,
         muted: false,
+        active: false,
     };
 
     let mut s = state.borrow_mut();
@@ -566,7 +578,16 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
     let mut s = state.borrow_mut();
     let stream_mix_id = s.node_by_name(STREAM_MIX_NODE).map(|n| n.id);
 
-    for (sink_name, _) in crate::audio::types::VIRTUAL_SINKS {
+    // Live channel set: every virtual sink we created or adopted.
+    let channel_names: Vec<String> = s
+        .owned_sinks
+        .keys()
+        .chain(s.adopted_sinks.keys())
+        .cloned()
+        .collect();
+
+    for sink_name in &channel_names {
+        let sink_name = sink_name.as_str();
         let channel_id = match s.node_by_name(sink_name) {
             Some(n) => n.id,
             None => continue,
@@ -628,7 +649,7 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
 
 fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
     match cmd {
-        Cmd::CreateSink { name, reply } => {
+        Cmd::CreateSink { name, label, reply } => {
             let mut s = state.borrow_mut();
             if s.node_by_name(&name).is_some() {
                 // Already exists (e.g. leftover from a previous run) — the
@@ -636,10 +657,10 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 let _ = reply.send(Ok(()));
                 return;
             }
-            let Some(label) = label_for(&name) else {
+            if !is_virtual_sink(&name) {
                 let _ = reply.send(Err(SinkError::UnknownSink(name)));
                 return;
-            };
+            }
             let Some(core) = CORE.with(|c| c.borrow().clone()) else {
                 let _ = reply.send(Err(SinkError::Config(
                     "sink creation requires a live core".into(),
@@ -651,7 +672,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 &pw::properties::properties! {
                     "factory.name" => "support.null-audio-sink",
                     "node.name" => name.as_str(),
-                    "node.description" => label,
+                    "node.description" => label.as_str(),
                     "media.class" => SINK_CLASS,
                     "audio.position" => "[ FL FR ]",
                     "monitor.channel-volumes" => "true",
@@ -691,6 +712,10 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             s.meters.remove(&name);
             s.channel_links.remove(&name);
             s.stream_links.remove(&name);
+            s.channel_outputs.remove(&name);
+            if let Some(levels) = &s.levels {
+                levels.release(&name);
+            }
             if let Some(proxy) = s.owned_sinks.remove(&name) {
                 match CORE.with(|c| c.borrow().clone()) {
                     Some(core) => {
@@ -716,15 +741,8 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 .values()
                 .filter(|n| n.media_class == STREAM_CLASS)
                 .map(|n| {
-                    let (app_name, match_prop) = [
-                        "application.name",
-                        "application.process.binary",
-                        "media.name",
-                        "node.name",
-                    ]
-                    .iter()
-                    .find_map(|key| n.props.get(*key).map(|v| (v.clone(), (*key).to_string())))
-                    .unwrap_or_else(|| ("Unknown".to_string(), "application.name".to_string()));
+                    let (app_name, match_prop) =
+                        crate::audio::types::resolve_identity(|key| n.props.get(key).cloned());
                     AppStream {
                         index: n.id,
                         app_name,
@@ -738,6 +756,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                             .cloned(),
                         volume_percent: n.volume_percent,
                         muted: n.muted,
+                        active: n.active,
                     }
                 })
                 .collect();

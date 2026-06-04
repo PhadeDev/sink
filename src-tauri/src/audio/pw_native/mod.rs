@@ -77,9 +77,10 @@ impl PipeWireBackend {
 }
 
 impl AudioBackend for PipeWireBackend {
-    fn create_virtual_sink(&self, name: &str) -> Result<(), SinkError> {
+    fn create_virtual_sink(&self, name: &str, label: &str) -> Result<(), SinkError> {
         let name = name.to_string();
-        self.request(|reply| Cmd::CreateSink { name, reply })
+        let label = label.to_string();
+        self.request(|reply| Cmd::CreateSink { name, label, reply })
     }
 
     fn destroy_virtual_sink(&self, name: &str) -> Result<(), SinkError> {

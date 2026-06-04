@@ -12,6 +12,8 @@ export interface AppStream {
   assigned_sink: string | null;
   volume_percent: number;
   muted: boolean;
+  /** True while the stream is actively producing audio. */
+  active: boolean;
 }
 
 export interface VirtualSink {

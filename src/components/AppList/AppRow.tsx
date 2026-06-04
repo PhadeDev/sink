@@ -53,6 +53,15 @@ export function AppRow({ stream }: AppRowProps) {
           />
         ) : (
           <div className="rtitle" title={stream.app_name}>
+            <span
+              className={"eq" + (stream.active ? " on" : "")}
+              title={stream.active ? "Playing audio" : "Silent"}
+              aria-hidden="true"
+            >
+              <i />
+              <i />
+              <i />
+            </span>
             <span className="rname">{displayName}</span>
             {stream.alias && (
               <span className="tag" title={`Discovered as "${stream.app_name}"`}>

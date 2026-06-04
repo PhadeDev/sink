@@ -17,7 +17,6 @@ use audio::backend::AudioBackend;
 use audio::pactl::PactlBackend;
 use audio::pw_native::levels::LevelStore;
 use audio::pw_native::PipeWireBackend;
-use audio::types::VIRTUAL_SINKS;
 use state::AppState;
 
 pub fn run() {
@@ -47,6 +46,9 @@ pub fn run() {
             commands::devices::teardown_virtual_devices,
             commands::devices::get_channel_outputs,
             commands::devices::set_channel_output,
+            commands::channels::add_channel,
+            commands::channels::rename_channel,
+            commands::channels::remove_channel,
             commands::routing::route_app_to_channel,
             commands::routing::set_channel_volume,
             commands::routing::toggle_channel_mute,
@@ -89,18 +91,12 @@ pub fn run() {
 /// Peaks are drained (read-and-reset), so silence decays to zero.
 fn spawn_level_emitter(handle: tauri::AppHandle, levels: Arc<LevelStore>) {
     std::thread::spawn(move || loop {
-        let mut payload: HashMap<&'static str, [f32; 2]> = VIRTUAL_SINKS
-            .iter()
-            .enumerate()
-            .map(|(slot, (name, _))| (*name, [levels.drain(slot, 0), levels.drain(slot, 1)]))
+        // The meter registry is dynamic (user-defined channels + mic).
+        let payload: HashMap<String, [f32; 2]> = levels
+            .names()
+            .into_iter()
+            .map(|(name, slot)| (name, [levels.drain(slot, 0), levels.drain(slot, 1)]))
             .collect();
-        payload.insert(
-            "sink_mic",
-            [
-                levels.drain(audio::pw_native::levels::MIC_SLOT, 0),
-                levels.drain(audio::pw_native::levels::MIC_SLOT, 1),
-            ],
-        );
         if handle.emit("levels", &payload).is_err() {
             // App is shutting down.
             break;

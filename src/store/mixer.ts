@@ -43,6 +43,10 @@ interface MixerStore {
   profiles: ProfileInfo[];
   /** Bind/clear an output device that auto-loads a profile (Phase 5). */
   setProfileTrigger: (name: string, device: string | null) => Promise<void>;
+  /** Channel management: labels are free-form, sink names are stable. */
+  addChannel: (label: string) => Promise<void>;
+  renameChannel: (sinkName: string, label: string) => Promise<void>;
+  removeChannel: (sinkName: string) => Promise<void>;
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
@@ -276,6 +280,40 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
       await invoke("delete_profile", { name });
       if (get().activeProfile === name) set({ activeProfile: null });
       await get().fetchProfiles();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  addChannel: async (label) => {
+    try {
+      await invoke("add_channel", { label });
+      await Promise.all([get().fetchChannels(), get().fetchOutputs()]);
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  renameChannel: async (sinkName, label) => {
+    set((s) => ({
+      channels: s.channels.map((c) => (c.name === sinkName ? { ...c, label } : c)),
+    }));
+    try {
+      await invoke("rename_channel", { sinkName, label });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchChannels();
+    }
+  },
+
+  removeChannel: async (sinkName) => {
+    try {
+      await invoke("remove_channel", { sinkName });
+      await Promise.all([
+        get().fetchChannels(),
+        get().fetchAppStreams(),
+        get().fetchOutputs(),
+      ]);
     } catch (e) {
       set({ error: String(e) });
     }

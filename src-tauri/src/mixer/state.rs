@@ -1,14 +1,17 @@
 use std::collections::HashSet;
 
-use crate::audio::types::{VirtualSink, VIRTUAL_SINKS};
+use crate::audio::types::VirtualSink;
 use crate::persistence::aliases::Aliases;
 use crate::persistence::assignments::Assignments;
+use crate::persistence::channels::Channels;
 
 /// In-memory mixer state: the source of truth for channel volume/mute as
 /// set through the UI, plus the persistent app→channel assignments.
 #[derive(Debug, Default)]
 pub struct MixerState {
     pub channels: Vec<VirtualSink>,
+    /// User-defined channel set (persisted to disk).
+    pub channel_defs: Channels,
     /// True once `init_virtual_devices` has created the sinks.
     pub initialized: bool,
     /// Saved app→channel assignments (persisted to disk + WirePlumber conf).
@@ -26,13 +29,16 @@ pub struct MixerState {
 }
 
 impl MixerState {
-    /// Populate the four default channels at 100% volume, unmuted.
+    /// Populate the channel strips from the user's channel definitions,
+    /// each at 100% volume, unmuted.
     pub fn init_defaults(&mut self) {
-        self.channels = VIRTUAL_SINKS
+        self.channels = self
+            .channel_defs
+            .channels
             .iter()
-            .map(|(name, label)| VirtualSink {
-                name: (*name).to_string(),
-                label: (*label).to_string(),
+            .map(|def| VirtualSink {
+                name: def.name.clone(),
+                label: def.label.clone(),
                 volume_percent: 100,
                 muted: false,
             })

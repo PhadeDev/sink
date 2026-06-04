@@ -1,25 +1,53 @@
 use serde::{Deserialize, Serialize};
 
-/// The four Phase 1 virtual channels: (internal sink name, display label).
-/// These exact names are mandated by AGENTS.md.
-pub const VIRTUAL_SINKS: [(&str, &str); 4] = [
-    ("sink_game", "Game"),
-    ("sink_chat", "Chat"),
-    ("sink_music", "Music"),
-    ("sink_system", "System"),
-];
-
-/// Returns the display label for a known virtual sink name.
-pub fn label_for(sink_name: &str) -> Option<&'static str> {
-    VIRTUAL_SINKS
-        .iter()
-        .find(|(name, _)| *name == sink_name)
-        .map(|(_, label)| *label)
+/// True if `sink_name` is one of our managed virtual channels. Channels
+/// are user-defined (see persistence::channels) but always carry the
+/// `sink_` prefix; Sink's own service nodes are excluded.
+pub fn is_virtual_sink(sink_name: &str) -> bool {
+    sink_name.starts_with("sink_")
+        && !crate::persistence::channels::RESERVED_SINK_NAMES.contains(&sink_name)
 }
 
-/// True if `sink_name` is one of our managed virtual channels.
-pub fn is_virtual_sink(sink_name: &str) -> bool {
-    label_for(sink_name).is_some()
+/// Property values that are technically present but useless as display
+/// names — media frameworks announcing themselves instead of the app.
+const GENERIC_NAMES: [&str; 9] = [
+    "WEBRTC VoiceEngine",
+    "audio-src",
+    "Playback Stream",
+    "playStream",
+    "audio stream",
+    "Audio Stream",
+    "output",
+    "ALSA Playback",
+    "Audio output",
+];
+
+fn is_generic_name(value: &str) -> bool {
+    GENERIC_NAMES.iter().any(|g| g.eq_ignore_ascii_case(value))
+}
+
+/// Resolve a stream's display name + identity property. Prefers the first
+/// non-generic value along the chain; falls back to the first generic one
+/// rather than "Unknown" (a framework name still beats nothing).
+pub fn resolve_identity(get: impl Fn(&str) -> Option<String>) -> (String, String) {
+    const CHAIN: [&str; 4] = [
+        "application.name",
+        "application.process.binary",
+        "media.name",
+        "node.name",
+    ];
+    let mut fallback: Option<(String, String)> = None;
+    for key in CHAIN {
+        if let Some(value) = get(key) {
+            if !is_generic_name(&value) {
+                return (value, key.to_string());
+            }
+            if fallback.is_none() {
+                fallback = Some((value, key.to_string()));
+            }
+        }
+    }
+    fallback.unwrap_or_else(|| ("Unknown".to_string(), "application.name".to_string()))
 }
 
 /// A running application audio stream (a PulseAudio "sink input").
@@ -38,6 +66,9 @@ pub struct AppStream {
     pub assigned_sink: Option<String>,
     pub volume_percent: u8,
     pub muted: bool,
+    /// True while the stream is actively producing audio (node running /
+    /// not corked) — drives the activity indicator in the app list.
+    pub active: bool,
 }
 
 /// One of the named virtual channels (Game/Chat/Music/System).

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMixerStore } from "../../store/mixer";
 import type { VirtualSink } from "../../types";
 import { MAX_VOLUME } from "../../types";
@@ -28,29 +29,78 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const level = useMixerStore((s) => s.levels[channel.name]);
   const output = useMixerStore((s) => s.channelOutputs[channel.name] ?? null);
   const setChannelOutput = useMixerStore((s) => s.setChannelOutput);
+  const renameChannel = useMixerStore((s) => s.renameChannel);
+  const removeChannel = useMixerStore((s) => s.removeChannel);
+  const channelCount = useMixerStore((s) => s.channels.length);
 
-  const [left, right] = level ?? [0, 0];
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const commitRename = () => {
+    setEditing(false);
+    const label = draft.trim();
+    if (label && label !== channel.label) {
+      void renameChannel(channel.name, label);
+    }
+  };
+
+  // Mono meter: show the louder of L/R (stereo split wasn't earning its
+  // width — real per-side metering returns if anyone asks).
+  const amplitude = Math.max(level?.[0] ?? 0, level?.[1] ?? 0);
 
   return (
     <div className={"strip" + (channel.muted ? " muted" : "")}>
+      {channelCount > 1 && (
+        <button
+          className="strip-delete"
+          aria-label={`Delete channel ${channel.label}`}
+          title="Delete channel (apps return to the default output)"
+          onClick={() => void removeChannel(channel.name)}
+        >
+          <Ms name="close" style={{ fontSize: 13 }} />
+        </button>
+      )}
       <div className="strip-head">
         <div className="strip-icon">
           <Ms name={channelIcon(channel.name)} />
         </div>
-        <div className="strip-name">{channel.label}</div>
+        {editing ? (
+          <input
+            className="menu-input strip-name-input"
+            value={draft}
+            autoFocus
+            maxLength={24}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+        ) : (
+          <div
+            className="strip-name strip-name-editable"
+            title="Double-click to rename"
+            onDoubleClick={() => {
+              setDraft(channel.label);
+              setEditing(true);
+            }}
+          >
+            {channel.label}
+          </div>
+        )}
         <div className="strip-meta">
           {appCount} {appCount === 1 ? "app" : "apps"}
         </div>
       </div>
 
       <div className="strip-body">
-        <VuMeter target={channel.muted ? 0 : perceptual(left)} />
         <Fader
           value={channel.volume_percent}
           max={MAX_VOLUME}
           onChange={(v) => void setChannelVolume(channel.name, v)}
         />
-        <VuMeter target={channel.muted ? 0 : perceptual(right)} />
+        <VuMeter target={channel.muted ? 0 : perceptual(amplitude)} />
       </div>
 
       <div className="strip-readout">

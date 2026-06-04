@@ -31,8 +31,9 @@ impl MeterHandle {
         sink_id: u32,
         levels: Arc<LevelStore>,
     ) -> Result<Self, SinkError> {
-        let slot = LevelStore::slot_for(sink_name)
-            .ok_or_else(|| SinkError::UnknownSink(sink_name.into()))?;
+        let slot = levels
+            .slot_for(sink_name)
+            .ok_or_else(|| SinkError::Config(format!("meter budget exhausted for {sink_name}")))?;
 
         let err = |stage: &str, e: pw::Error| SinkError::Config(format!("meter {stage}: {e}"));
 

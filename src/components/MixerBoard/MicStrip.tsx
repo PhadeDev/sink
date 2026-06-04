@@ -27,7 +27,6 @@ export function MicStrip() {
       </div>
 
       <div className="strip-body">
-        <VuMeter target={target} />
         <Fader
           value={micConfig.gain_percent}
           max={MAX_MIC_GAIN}

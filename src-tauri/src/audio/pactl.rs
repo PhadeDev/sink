@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use serde::Deserialize;
 
 use crate::audio::backend::AudioBackend;
-use crate::audio::types::{is_virtual_sink, label_for, AppStream, OutputDevice};
+use crate::audio::types::{is_virtual_sink, AppStream, OutputDevice};
 use crate::error::SinkError;
 
 /// `owner_module` value pactl uses when a sink has no owning module.
@@ -50,6 +50,8 @@ struct PactlSinkInput {
     /// Index of the sink this stream is currently connected to.
     sink: u32,
     mute: bool,
+    #[serde(default)]
+    corked: bool,
     volume: HashMap<String, PactlVolume>,
     #[serde(default)]
     properties: HashMap<String, serde_json::Value>,
@@ -150,9 +152,7 @@ fn prop<'a>(props: &'a HashMap<String, serde_json::Value>, key: &str) -> Option<
 }
 
 impl AudioBackend for PactlBackend {
-    fn create_virtual_sink(&self, name: &str) -> Result<(), SinkError> {
-        let label = label_for(name).ok_or_else(|| SinkError::UnknownSink(name.into()))?;
-
+    fn create_virtual_sink(&self, name: &str, label: &str) -> Result<(), SinkError> {
         // Idempotency: if the sink already exists (e.g. previous run crashed
         // before teardown), adopt its module instead of loading a duplicate.
         if let Some(existing) = Self::list_sinks()?.iter().find(|s| s.name == name) {
@@ -215,20 +215,12 @@ impl AudioBackend for PactlBackend {
         Ok(inputs
             .into_iter()
             .map(|input| {
-                // Fallback chain: some apps omit application.name, leaving
-                // only generic node properties. The winning property is kept
-                // as the stream's identity for persistent assignments.
-                let (app_name, match_prop) = [
-                    "application.name",
-                    "application.process.binary",
-                    "media.name",
-                    "node.name",
-                ]
-                .iter()
-                .find_map(|key| {
-                    prop(&input.properties, key).map(|v| (v.to_string(), (*key).to_string()))
-                })
-                .unwrap_or_else(|| ("Unknown".to_string(), "application.name".to_string()));
+                // Shared identity resolution: skips generic framework names
+                // (e.g. "WEBRTC VoiceEngine" → the Discord binary). The
+                // winning property is the stream's persistent identity.
+                let (app_name, match_prop) = crate::audio::types::resolve_identity(|key| {
+                    prop(&input.properties, key).map(str::to_string)
+                });
                 let icon_name =
                     prop(&input.properties, "application.icon_name").map(str::to_string);
                 let assigned_sink = sink_names
@@ -246,6 +238,7 @@ impl AudioBackend for PactlBackend {
                     assigned_sink,
                     volume_percent: volume_percent(&input.volume),
                     muted: input.mute,
+                    active: !input.corked,
                 }
             })
             .collect())

@@ -1,8 +1,53 @@
+import { useState } from "react";
 import { useMixerStore } from "../../store/mixer";
+import { Ms } from "../Icons";
 import { ChannelStrip } from "./ChannelStrip";
 import { ChatMix } from "./ChatMix";
 import { MicStrip } from "./MicStrip";
 import { OutputSelect } from "./OutputSelect";
+
+const MAX_CHANNELS = 10;
+
+/** Ghost strip that turns into an inline input to create a channel. */
+function AddChannelStrip() {
+  const addChannel = useMixerStore((s) => s.addChannel);
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState("");
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = label.trim();
+    setLabel("");
+    if (trimmed) void addChannel(trimmed);
+  };
+
+  if (editing) {
+    return (
+      <div className="strip strip-add">
+        <input
+          className="menu-input strip-name-input"
+          placeholder="Channel name…"
+          value={label}
+          autoFocus
+          maxLength={24}
+          onChange={(e) => setLabel(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") setEditing(false);
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button className="strip strip-add" onClick={() => setEditing(true)} title="Add a channel">
+      <Ms name="add" style={{ fontSize: 22 }} />
+      <span className="strip-add-label">Add channel</span>
+    </button>
+  );
+}
 
 export function MixerBoard() {
   const channels = useMixerStore((s) => s.channels);
@@ -59,6 +104,7 @@ export function MixerBoard() {
             />
           ))}
           <MicStrip />
+          {channels.length < MAX_CHANNELS && <AddChannelStrip />}
         </div>
       </div>
     </div>

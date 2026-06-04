@@ -7,7 +7,9 @@ use crate::error::SinkError;
 /// Phase 2 will swap in a native `PipeWireBackend` without touching the UI
 /// or the Tauri command layer — commands must only ever talk to this trait.
 pub trait AudioBackend: Send + Sync {
-    fn create_virtual_sink(&self, name: &str) -> Result<(), SinkError>;
+    /// `label` is the human-readable device description shown by system
+    /// mixers (channels are user-defined since the dynamic-channels work).
+    fn create_virtual_sink(&self, name: &str, label: &str) -> Result<(), SinkError>;
     fn destroy_virtual_sink(&self, name: &str) -> Result<(), SinkError>;
     fn list_app_streams(&self) -> Result<Vec<AppStream>, SinkError>;
     fn list_output_devices(&self) -> Result<Vec<OutputDevice>, SinkError>;

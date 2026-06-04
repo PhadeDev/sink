@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::audio::types::{AppStream, OutputDevice, VirtualSink, VIRTUAL_SINKS};
+use crate::audio::types::{AppStream, OutputDevice, VirtualSink};
 use crate::state::AppState;
 
 const LOCK_ERR: &str = "mixer state lock poisoned";
@@ -68,24 +68,29 @@ pub fn get_output_devices(state: State<'_, AppState>) -> Result<Vec<OutputDevice
         .map_err(|e| e.to_string())
 }
 
-/// Create the four default virtual sinks and reset them to 100%, unmuted.
+/// Create the user's virtual sinks and reset them to 100%, unmuted.
 /// Idempotent: safe to call again if the sinks already exist.
 #[tauri::command]
 pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
-    for (name, _) in VIRTUAL_SINKS {
+    let defs = {
+        let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        mixer.channel_defs.clone()
+    };
+
+    for def in &defs.channels {
         state
             .backend
-            .create_virtual_sink(name)
+            .create_virtual_sink(&def.name, &def.label)
             .map_err(|e| e.to_string())?;
         // Known starting point — adopted sinks from a previous run may carry
         // stale volume/mute.
         state
             .backend
-            .set_sink_volume(name, 100)
+            .set_sink_volume(&def.name, 100)
             .map_err(|e| e.to_string())?;
         state
             .backend
-            .set_sink_mute(name, false)
+            .set_sink_mute(&def.name, false)
             .map_err(|e| e.to_string())?;
     }
 
@@ -97,9 +102,12 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
 
     // Wire every channel to its saved output (or the system default) so
     // channels are audible from the start.
-    for (name, _) in VIRTUAL_SINKS {
-        if let Err(e) = state.backend.set_channel_output(name, outputs.get(name)) {
-            eprintln!("sink: output routing for {name} failed: {e}");
+    for def in &defs.channels {
+        if let Err(e) = state
+            .backend
+            .set_channel_output(&def.name, outputs.get(&def.name))
+        {
+            eprintln!("sink: output routing for {} failed: {e}", def.name);
         }
     }
 
@@ -118,12 +126,14 @@ pub fn get_channel_outputs(
     state: State<'_, AppState>,
 ) -> Result<std::collections::HashMap<String, Option<String>>, String> {
     let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
-    Ok(VIRTUAL_SINKS
+    Ok(mixer
+        .channel_defs
+        .channels
         .iter()
-        .map(|(name, _)| {
+        .map(|def| {
             (
-                (*name).to_string(),
-                mixer.outputs.get(name).map(str::to_string),
+                def.name.clone(),
+                mixer.outputs.get(&def.name).map(str::to_string),
             )
         })
         .collect())

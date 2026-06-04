@@ -13,7 +13,7 @@ use pw::spa;
 use spa::pod::Pod;
 
 use crate::audio::pw_native::dsp::{DspChain, DspSettings};
-use crate::audio::pw_native::levels::{LevelStore, MIC_SLOT};
+use crate::audio::pw_native::levels::LevelStore;
 use crate::audio::pw_native::ring::Ring;
 use crate::audio::types::MicConfig;
 use crate::error::SinkError;
@@ -71,6 +71,7 @@ struct CaptureCtx {
     params: Arc<MicParams>,
     ring: Arc<Ring>,
     levels: Arc<LevelStore>,
+    level_slot: usize,
     scratch: Vec<f32>,
 }
 
@@ -126,6 +127,9 @@ impl MicStreams {
     ) -> Result<Self, SinkError> {
         let err = |stage: &str, e: pw::Error| SinkError::Config(format!("mic {stage}: {e}"));
         let params = Arc::new(MicParams::from_config(config));
+        let level_slot = levels
+            .slot_for(MIC_NODE)
+            .ok_or_else(|| SinkError::Config("meter budget exhausted for mic".into()))?;
         // ~85 ms of headroom at 48 kHz; actual added latency is one quantum.
         let ring = Arc::new(Ring::new(4096));
 
@@ -148,6 +152,7 @@ impl MicStreams {
                 params: params.clone(),
                 ring: ring.clone(),
                 levels,
+                level_slot,
                 scratch: Vec::with_capacity(4096),
             })
             .param_changed(|_, ctx, id, param| {
@@ -183,8 +188,8 @@ impl MicStreams {
 
                 // Post-DSP level for the UI (mono → both meter channels).
                 let peak = ctx.scratch.iter().fold(0.0f32, |a, s| a.max(s.abs()));
-                ctx.levels.raise(MIC_SLOT, 0, peak);
-                ctx.levels.raise(MIC_SLOT, 1, peak);
+                ctx.levels.raise(ctx.level_slot, 0, peak);
+                ctx.levels.raise(ctx.level_slot, 1, peak);
 
                 ctx.ring.push(&ctx.scratch);
             })
@@ -229,10 +234,19 @@ impl MicStreams {
                 let Some(mut buffer) = stream.dequeue_buffer() else {
                     return;
                 };
+                // Fill only what the graph asked for this cycle — filling
+                // the whole mmap'd buffer (8k+ frames vs ~1k produced per
+                // quantum) starves the ring and chops the audio.
+                let requested = buffer.requested() as usize;
                 let datas = buffer.datas_mut();
                 let Some(data) = datas.first_mut() else { return };
                 let max_bytes = data.data().map(|d| d.len()).unwrap_or(0);
-                let n = max_bytes / 4;
+                let max_frames = max_bytes / 4;
+                let n = if requested > 0 {
+                    requested.min(max_frames)
+                } else {
+                    max_frames.min(1024)
+                };
                 if n == 0 {
                     return;
                 }

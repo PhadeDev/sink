@@ -29,15 +29,18 @@ impl Default for DspSettings {
 }
 
 // Fixed, opinionated stage tuning (SPEC: chain is built-in, not a rack).
-const GATE_THRESHOLD_DB: f32 = -45.0;
-const GATE_ATTACK_MS: f32 = 2.0;
-const GATE_RELEASE_MS: f32 = 120.0;
-const GATE_HOLD_MS: f32 = 60.0;
+// Values follow common voice-chain guidance (OBS noise-gate/compressor
+// starting points): gate threshold around -40 dB with a generous hold so
+// words aren't clipped, compressor 3:1 at -18 dB with a quick release.
+const GATE_THRESHOLD_DB: f32 = -40.0;
+const GATE_ATTACK_MS: f32 = 5.0;
+const GATE_RELEASE_MS: f32 = 150.0;
+const GATE_HOLD_MS: f32 = 200.0;
 
 const COMP_THRESHOLD_DB: f32 = -18.0;
 const COMP_RATIO: f32 = 3.0;
-const COMP_ATTACK_MS: f32 = 8.0;
-const COMP_RELEASE_MS: f32 = 150.0;
+const COMP_ATTACK_MS: f32 = 6.0;
+const COMP_RELEASE_MS: f32 = 60.0;
 const COMP_MAKEUP_DB: f32 = 4.0;
 
 const LIMIT_CEILING_DB: f32 = -1.0;
