@@ -64,7 +64,6 @@ pub fn run() {
             commands::mic::set_mic_config,
             commands::mic::get_input_devices,
             commands::profiles::list_profiles,
-            commands::profiles::save_profile,
             commands::profiles::load_profile,
             commands::profiles::delete_profile,
             commands::profiles::set_profile_trigger,

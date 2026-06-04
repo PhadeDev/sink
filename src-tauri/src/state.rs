@@ -12,6 +12,14 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Lock the mixer state, mapping poisoning to a command-friendly error.
+    /// All command handlers go through this instead of hand-rolled map_errs.
+    pub fn lock_mixer(&self) -> Result<std::sync::MutexGuard<'_, MixerState>, String> {
+        self.mixer
+            .lock()
+            .map_err(|_| "mixer state lock poisoned".to_string())
+    }
+
     pub fn new(backend: Arc<dyn AudioBackend>, backend_native: bool) -> Self {
         // Saved assignments are loaded eagerly so auto-routing can enforce
         // them as soon as the sinks exist.

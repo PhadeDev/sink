@@ -4,7 +4,6 @@ use crate::audio::types::is_virtual_sink;
 use crate::persistence::wireplumber;
 use crate::state::AppState;
 
-const LOCK_ERR: &str = "mixer state lock poisoned";
 const MAX_VOLUME: u8 = 150;
 
 /// Move an app stream onto a channel. An empty `sink_name` unassigns the
@@ -36,7 +35,7 @@ pub fn route_app_to_channel(
     };
 
     let assignments = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         if sink_name.is_empty() {
             mixer
                 .assignments
@@ -70,7 +69,7 @@ pub fn set_channel_volume(
         .set_sink_volume(&sink_name, volume)
         .map_err(|e| e.to_string())?;
 
-    let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mut mixer = state.lock_mixer()?;
     if let Some(channel) = mixer.channel_mut(&sink_name) {
         channel.volume_percent = volume;
     }
@@ -90,7 +89,7 @@ pub fn toggle_channel_mute(
         .set_sink_mute(&sink_name, muted)
         .map_err(|e| e.to_string())?;
 
-    let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mut mixer = state.lock_mixer()?;
     if let Some(channel) = mixer.channel_mut(&sink_name) {
         channel.muted = muted;
     }
@@ -108,7 +107,7 @@ pub fn rename_app(
     alias: String,
 ) -> Result<(), String> {
     let aliases = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer.aliases.set(&match_prop, &match_value, &alias);
         mixer.aliases.clone()
     };

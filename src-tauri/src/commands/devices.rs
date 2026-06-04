@@ -3,12 +3,11 @@ use tauri::State;
 use crate::audio::types::{AppStream, OutputDevice, VirtualSink};
 use crate::state::AppState;
 
-const LOCK_ERR: &str = "mixer state lock poisoned";
 
 /// Current channel state (volume/mute as tracked by MixerState).
 #[tauri::command]
 pub fn get_virtual_devices(state: State<'_, AppState>) -> Result<Vec<VirtualSink>, String> {
-    let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mixer = state.lock_mixer()?;
     Ok(mixer.channels.clone())
 }
 
@@ -22,7 +21,7 @@ pub fn get_virtual_devices(state: State<'_, AppState>) -> Result<Vec<VirtualSink
 pub fn get_app_streams(state: State<'_, AppState>) -> Result<Vec<AppStream>, String> {
     let mut streams = state.backend.list_app_streams().map_err(|e| e.to_string())?;
 
-    let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mut mixer = state.lock_mixer()?;
 
     // Record sightings in the app history, then hide ignored identities
     // (they are also exempt from auto-routing below by virtue of removal).
@@ -96,7 +95,7 @@ pub fn get_output_devices(state: State<'_, AppState>) -> Result<Vec<OutputDevice
 #[tauri::command]
 pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
     let defs = {
-        let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mixer = state.lock_mixer()?;
         mixer.channel_defs.clone()
     };
 
@@ -118,7 +117,7 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
     }
 
     let (outputs, mic) = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer.init_defaults();
         (mixer.outputs.clone(), mixer.mic.clone())
     };
@@ -145,7 +144,7 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
     // there's always a known-good state to come back to. It also becomes
     // the active (autosaving) profile.
     if matches!(crate::persistence::profiles::list(), Ok(list) if list.is_empty()) {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         let default = crate::persistence::profiles::Profile {
             name: "Default".to_string(),
             channels: mixer.channels.clone(),
@@ -169,7 +168,7 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
 pub fn get_channel_outputs(
     state: State<'_, AppState>,
 ) -> Result<std::collections::HashMap<String, Option<String>>, String> {
-    let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mixer = state.lock_mixer()?;
     Ok(mixer
         .channel_defs
         .channels
@@ -202,7 +201,7 @@ pub fn set_channel_output(
         .map_err(|e| e.to_string())?;
 
     let outputs = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer.outputs.set(&sink_name, output);
         crate::commands::profiles::autosave_active(&mixer);
         mixer.outputs.clone()

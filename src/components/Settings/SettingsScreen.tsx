@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { Ms } from "../Icons";
-
-function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return <button className={"toggle" + (on ? " on" : "")} onClick={onClick} aria-pressed={on} />;
-}
+import { Toggle } from "../Toggle";
 
 export function SettingsScreen() {
   const [autostart, setAutostart] = useState<boolean | null>(null);

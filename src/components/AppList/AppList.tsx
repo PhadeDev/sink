@@ -4,7 +4,8 @@ import type { AppStream } from "../../types";
 import { Ms } from "../Icons";
 import { AppRow } from "./AppRow";
 import { AppIcon } from "./AppIcon";
-import { InactiveRow, relativeTime } from "./InactiveRow";
+import { InactiveRow } from "./InactiveRow";
+import { relativeTime } from "../../lib/format";
 
 /** Apps screen: live apps grouped by channel, previously-seen apps below
  * (pre-routable while closed), ignored apps tucked away at the bottom. */

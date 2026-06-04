@@ -5,20 +5,10 @@ import { MAX_VOLUME } from "../../types";
 import { channelIcon, Ms, ICON_CHOICES } from "../Icons";
 import { Modal } from "../Modal";
 import { Popover } from "../Popover";
+import { perceptual, volToDb } from "../../lib/audio";
 import { Fader } from "./Fader";
 import { OutputSelect } from "./OutputSelect";
 import { VuMeter } from "./VuMeter";
-
-function volToDb(v: number): string {
-  if (v === 0) return "-∞";
-  const db = 20 * Math.log10(v / 100);
-  return (db >= 0 ? "+" : "") + db.toFixed(1) + " dB";
-}
-
-/** Map a linear peak amplitude to a perceptual meter height. */
-function perceptual(amplitude: number): number {
-  return Math.min(1, Math.sqrt(Math.max(0, amplitude)));
-}
 
 interface ChannelStripProps {
   channel: VirtualSink;

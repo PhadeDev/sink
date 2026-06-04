@@ -453,7 +453,7 @@ fn on_node(
     // The virtual mic source came up: attach the DSP streams.
     if media_class == VIRTUAL_SOURCE_CLASS && node_name == MIC_NODE {
         drop(s);
-        build_mic_streams(state, global.id);
+        build_mic_streams(state);
         return;
     }
 
@@ -464,9 +464,9 @@ fn on_node(
     }
 }
 
-/// (Re)build the mic capture/DSP/playback streams. The virtual source is
-/// addressed by name via target.object, so no id is needed.
-fn build_mic_streams(state: &Rc<RefCell<State>>, _source_id: u32) {
+/// (Re)build the mic capture/DSP/playback streams. The loop links the
+/// playback stream to the virtual source by name, so no id is needed.
+fn build_mic_streams(state: &Rc<RefCell<State>>) {
     let Some(core) = CORE.with(|c| c.borrow().clone()) else {
         return;
     };
@@ -809,7 +809,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             let _ = reply.send(set_props(s.nodes.get(&id), Some(percent), None));
         }
         Cmd::SetMicConfig { config, reply } => {
-            let (needs_create, needs_destroy, needs_rebuild, source_id) = {
+            let (needs_create, needs_destroy, needs_rebuild, source_exists) = {
                 let mut s = state.borrow_mut();
                 let prev = s.mic_config.clone();
                 s.mic_config = config.clone();
@@ -819,13 +819,13 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     streams.params.apply(&config);
                 }
 
-                let source_id = s.node_by_name(MIC_NODE).map(|n| n.id);
+                let source_exists = s.node_by_name(MIC_NODE).is_some();
                 let needs_create = config.enabled && s.mic_source.is_none();
                 let needs_destroy = !config.enabled && s.mic_source.is_some();
                 let needs_rebuild = config.enabled
                     && s.mic_streams.is_some()
                     && prev.input_device != config.input_device;
-                (needs_create, needs_destroy, needs_rebuild, source_id)
+                (needs_create, needs_destroy, needs_rebuild, source_exists)
             };
 
             if needs_destroy {
@@ -868,17 +868,15 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 }
             } else if needs_rebuild {
                 state.borrow_mut().mic_streams = None;
-                if let Some(id) = source_id {
-                    build_mic_streams(state, id);
+                if source_exists {
+                    build_mic_streams(state);
                 }
-            } else if config.enabled && source_id.is_some() {
+            } else if config.enabled && source_exists {
                 // Source exists but streams may be missing (earlier failure
                 // or config re-applied at startup) — attach if needed.
                 let missing = state.borrow().mic_streams.is_none();
                 if missing {
-                    if let Some(id) = source_id {
-                        build_mic_streams(state, id);
-                    }
+                    build_mic_streams(state);
                 }
             }
             let _ = reply.send(Ok(()));

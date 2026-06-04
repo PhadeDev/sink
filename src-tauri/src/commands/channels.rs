@@ -4,7 +4,6 @@ use crate::audio::types::VirtualSink;
 use crate::persistence::wireplumber;
 use crate::state::AppState;
 
-const LOCK_ERR: &str = "mixer state lock poisoned";
 
 /// Create a new channel from a label and icon (sink name is generated).
 /// The new channel starts at 100%, unmuted, following the default output.
@@ -15,7 +14,7 @@ pub fn add_channel(
     icon: Option<String>,
 ) -> Result<(), String> {
     let (def, defs) = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         let def = mixer
             .channel_defs
             .add(&label, icon)
@@ -30,13 +29,13 @@ pub fn add_channel(
         state.backend.set_channel_output(&def.name, None)
     })() {
         // Roll the definition back so config matches reality.
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         let _ = mixer.channel_defs.remove(&def.name);
         return Err(e.to_string());
     }
 
     defs.save().map_err(|e| e.to_string())?;
-    let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mut mixer = state.lock_mixer()?;
     mixer.channels.push(VirtualSink {
         name: def.name,
         label: def.label,
@@ -57,7 +56,7 @@ pub fn set_channel_icon(
 ) -> Result<(), String> {
     let icon = if icon.is_empty() { None } else { Some(icon) };
     let defs = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer
             .channel_defs
             .set_icon(&sink_name, icon.clone())
@@ -80,7 +79,7 @@ pub fn rename_channel(
     label: String,
 ) -> Result<(), String> {
     let defs = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer
             .channel_defs
             .rename(&sink_name, &label)
@@ -100,7 +99,7 @@ pub fn rename_channel(
 pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(), String> {
     // Validate against the definition set first (also enforces "keep one").
     {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer
             .channel_defs
             .remove(&sink_name)
@@ -125,7 +124,7 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
         .map_err(|e| e.to_string())?;
 
     let (defs, assignments, outputs) = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer.channels.retain(|c| c.name != sink_name);
         mixer
             .assignments

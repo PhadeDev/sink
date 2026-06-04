@@ -1,5 +1,6 @@
 import { useMixerStore } from "../../store/mixer";
 import { MAX_MIC_GAIN, MIC_LEVEL_KEY } from "../../types";
+import { perceptual } from "../../lib/audio";
 import { Ms } from "../Icons";
 import { Fader } from "./Fader";
 import { VuMeter } from "./VuMeter";
@@ -13,8 +14,7 @@ export function MicStrip() {
 
   if (!micConfig?.enabled) return null;
 
-  const amplitude = Math.min(1, Math.sqrt(Math.max(0, level?.[0] ?? 0)));
-  const target = micConfig.muted ? 0 : amplitude;
+  const target = micConfig.muted ? 0 : perceptual(level?.[0] ?? 0);
 
   return (
     <>

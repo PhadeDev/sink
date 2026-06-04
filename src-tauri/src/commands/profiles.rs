@@ -5,7 +5,6 @@ use crate::persistence::profiles::{self, Profile, ProfileInfo};
 use crate::persistence::wireplumber;
 use crate::state::AppState;
 
-const LOCK_ERR: &str = "mixer state lock poisoned";
 
 /// Persist the current mixer state into the active profile, if any.
 /// Profiles are live-bound: every profile-relevant mutation calls this so
@@ -29,7 +28,7 @@ pub fn autosave_active(mixer: &crate::mixer::state::MixerState) {
 }
 
 fn set_active(state: &State<'_, AppState>, name: Option<String>) -> Result<(), String> {
-    let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mut mixer = state.lock_mixer()?;
     mixer.active_profile = name.clone();
     crate::persistence::active::save(name.as_deref()).map_err(|e| e.to_string())
 }
@@ -42,7 +41,7 @@ pub fn list_profiles() -> Result<Vec<ProfileInfo>, String> {
 /// The profile changes are currently autosaving into (restored at launch).
 #[tauri::command]
 pub fn get_active_profile(state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mixer = state.lock_mixer()?;
     Ok(mixer.active_profile.clone())
 }
 
@@ -52,34 +51,6 @@ pub fn get_active_profile(state: State<'_, AppState>) -> Result<Option<String>, 
 pub fn set_profile_trigger(name: String, device: String) -> Result<(), String> {
     let trigger = if device.is_empty() { None } else { Some(device) };
     profiles::set_trigger(&name, trigger).map_err(|e| e.to_string())
-}
-
-/// Snapshot the current mixer state (channels + assignments) under `name`.
-#[tauri::command]
-pub fn save_profile(state: State<'_, AppState>, name: String) -> Result<(), String> {
-    let name = profiles::sanitize_name(&name).map_err(|e| e.to_string())?;
-    let profile = {
-        let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
-        Profile {
-            name,
-            channels: mixer.channels.clone(),
-            assignments: mixer.assignments.clone(),
-            outputs: mixer.outputs.clone(),
-            // Preserved separately via set_profile_trigger when re-saving.
-            trigger_device: None,
-        }
-    };
-    // Re-saving an existing profile keeps its trigger binding.
-    let trigger = profiles::load(&profile.name)
-        .ok()
-        .and_then(|p| p.trigger_device);
-    let profile = Profile {
-        trigger_device: trigger,
-        ..profile
-    };
-    profiles::save(&profile).map_err(|e| e.to_string())?;
-    // Saving under a name makes that profile the live-bound one.
-    set_active(&state, Some(profile.name))
 }
 
 /// Apply a saved profile: reconcile the channel **layout** (create missing
@@ -95,7 +66,7 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
 
     // ---- layout reconciliation ----
     let current: Vec<ChannelDef> = {
-        let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mixer = state.lock_mixer()?;
         mixer.channel_defs.channels.clone()
     };
     for channel in &profile.channels {
@@ -142,7 +113,7 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
     }
 
     let (defs, assignments, outputs) = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer.channel_defs = crate::persistence::channels::Channels {
             channels: profile
                 .channels
@@ -207,7 +178,7 @@ pub fn create_blank_profile(name: String) -> Result<(), String> {
 pub fn delete_profile(state: State<'_, AppState>, name: String) -> Result<(), String> {
     profiles::delete(&name).map_err(|e| e.to_string())?;
     let is_active = {
-        let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mixer = state.lock_mixer()?;
         mixer.active_profile.as_deref() == Some(name.as_str())
     };
     if is_active {

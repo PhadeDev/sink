@@ -1,16 +1,9 @@
 import { useMixerStore } from "../../store/mixer";
 import type { SeenApp } from "../../types";
+import { relativeTime } from "../../lib/format";
 import { Ms } from "../Icons";
 import { AppIcon } from "./AppIcon";
 import { ChannelSelect } from "./ChannelSelect";
-
-export function relativeTime(unixSeconds: number): string {
-  const delta = Math.max(0, Math.floor(Date.now() / 1000) - unixSeconds);
-  if (delta < 90) return "just now";
-  if (delta < 3600) return `${Math.round(delta / 60)}m ago`;
-  if (delta < 86400) return `${Math.round(delta / 3600)}h ago`;
-  return `${Math.round(delta / 86400)}d ago`;
-}
 
 /**
  * A previously-seen app that isn't currently playing. Routing edits here

@@ -1,46 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useMixerStore } from "../../store/mixer";
 import { MAX_MIC_GAIN, MIC_LEVEL_KEY } from "../../types";
+import { perceptual } from "../../lib/audio";
 import { HSlider } from "../AppList/HSlider";
 import { Ms } from "../Icons";
 import { Popover } from "../Popover";
-
-function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return <button className={"toggle" + (on ? " on" : "")} onClick={onClick} aria-pressed={on} />;
-}
-
-function ToggleRow({
-  icon,
-  title,
-  sub,
-  on,
-  onToggle,
-}: {
-  icon: string;
-  title: string;
-  sub: string;
-  on: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="row">
-      <div className="ricon">
-        <Ms name={icon} />
-      </div>
-      <div className="rmain">
-        <div className="rtitle">{title}</div>
-        <div className="rsub">{sub}</div>
-      </div>
-      <Toggle on={on} onClick={onToggle} />
-    </div>
-  );
-}
+import { ToggleRow } from "../Toggle";
 
 /** Live mono input level driven by the `levels` event stream. */
 function MicLevel() {
   const fillRef = useRef<HTMLDivElement>(null);
   const level = useMixerStore((s) => s.levels[MIC_LEVEL_KEY]);
-  const target = Math.min(1, Math.sqrt(Math.max(0, level?.[0] ?? 0)));
+  const target = perceptual(level?.[0] ?? 0);
   const targetRef = useRef(0);
   targetRef.current = target;
 
@@ -199,7 +170,7 @@ export function MicScreen() {
               <ToggleRow
                 icon="noise_control_off"
                 title="Noise gate"
-                sub="Cuts the noise floor between words (-45 dB threshold)"
+                sub="Cuts the noise floor between words (-40 dB threshold)"
                 on={micConfig.gate_enabled}
                 onToggle={() => void setMicConfig({ gate_enabled: !micConfig.gate_enabled })}
               />

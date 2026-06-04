@@ -5,7 +5,6 @@ use crate::audio::types::is_virtual_sink;
 use crate::persistence::wireplumber;
 use crate::state::AppState;
 
-const LOCK_ERR: &str = "mixer state lock poisoned";
 
 /// A seen-app entry enriched with its current routing and alias.
 #[derive(Debug, Clone, Serialize)]
@@ -24,7 +23,7 @@ pub struct SeenApp {
 /// frontend decides what to show where).
 #[tauri::command]
 pub fn get_seen_apps(state: State<'_, AppState>) -> Result<Vec<SeenApp>, String> {
-    let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mixer = state.lock_mixer()?;
     Ok(mixer
         .seen
         .apps
@@ -57,7 +56,7 @@ pub fn set_app_ignored(
     ignored: bool,
 ) -> Result<(), String> {
     let seen = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         if !mixer.seen.set_ignored(&match_prop, &match_value, ignored) {
             return Err("unknown app".to_string());
         }
@@ -74,7 +73,7 @@ pub fn forget_app(
     match_value: String,
 ) -> Result<(), String> {
     let (seen, assignments, aliases) = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer.seen.forget(&match_prop, &match_value);
         mixer.assignments.remove(&match_prop, &match_value);
         mixer.aliases.set(&match_prop, &match_value, "");
@@ -105,7 +104,7 @@ pub fn set_app_assignment(
         return Err(format!("unknown channel: {sink_name}"));
     }
     let assignments = {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         if sink_name.is_empty() {
             mixer.assignments.remove(&match_prop, &match_value);
         } else {

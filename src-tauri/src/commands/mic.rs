@@ -4,11 +4,10 @@ use crate::audio::types::{MicConfig, OutputDevice};
 use crate::persistence::mic;
 use crate::state::AppState;
 
-const LOCK_ERR: &str = "mixer state lock poisoned";
 
 #[tauri::command]
 pub fn get_mic_config(state: State<'_, AppState>) -> Result<MicConfig, String> {
-    let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    let mixer = state.lock_mixer()?;
     Ok(mixer.mic.clone())
 }
 
@@ -20,7 +19,7 @@ pub fn set_mic_config(state: State<'_, AppState>, config: MicConfig) -> Result<(
         .set_mic_config(&config)
         .map_err(|e| e.to_string())?;
     {
-        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.lock_mixer()?;
         mixer.mic = config.clone();
     }
     mic::save(&config).map_err(|e| e.to_string())

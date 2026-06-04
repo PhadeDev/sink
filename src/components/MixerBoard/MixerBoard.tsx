@@ -7,6 +7,8 @@ import { ChatMix } from "./ChatMix";
 import { MicStrip } from "./MicStrip";
 import { OutputSelect } from "./OutputSelect";
 
+// UI-side gate only; the backend enforces the real limit
+// (persistence/channels.rs MAX_CHANNELS — keep in sync).
 const MAX_CHANNELS = 10;
 
 /** Ghost strip that opens the create-channel modal. */

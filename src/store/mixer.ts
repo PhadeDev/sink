@@ -92,11 +92,25 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   channels: [],
   appStreams: [],
   levels: {},
-  setLevels: (levels) => set({ levels }),
+  setLevels: (levels) => {
+    // Levels arrive at 10 Hz even when everything is silent; skipping
+    // no-op updates avoids re-rendering every strip 10×/second at idle.
+    const prev = get().levels;
+    const keys = Object.keys(levels);
+    const unchanged =
+      keys.length === Object.keys(prev).length &&
+      keys.every((k) => {
+        const a = prev[k];
+        const b = levels[k];
+        return a && Math.abs(a[0] - b[0]) < 1e-4 && Math.abs(a[1] - b[1]) < 1e-4;
+      });
+    if (!unchanged) set({ levels });
+  },
   outputDevices: [],
   channelOutputs: {},
   micConfig: null,
   inputDevices: [],
+  seenApps: [],
   profiles: [],
   activeProfile: null,
   error: null,
@@ -295,8 +309,6 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
       set({ error: String(e) });
     }
   },
-
-  seenApps: [],
 
   fetchSeenApps: async () => {
     try {
