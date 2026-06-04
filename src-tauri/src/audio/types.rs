@@ -85,6 +85,10 @@ pub fn resolve_identity(get: impl Fn(&str) -> Option<String>) -> (String, String
     let mut best: Option<(u8, String, String)> = None;
     for key in CHAIN {
         if let Some(value) = get(key) {
+            // Empty/whitespace property values are noise, not identities.
+            if value.trim().is_empty() {
+                continue;
+            }
             let quality = name_quality(&value);
             // (map_or keeps MSRV 1.77 — Option::is_none_or is 1.82+.)
             if best.as_ref().map_or(true, |(q, _, _)| quality > *q) {
@@ -159,6 +163,17 @@ mod identity_tests {
         ]);
         assert_eq!(display, "Firefox");
         assert_eq!(prop, "application.name");
+    }
+
+    #[test]
+    fn empty_values_never_win() {
+        let (display, _, value) = resolve(&[
+            ("application.name", ""),
+            ("media.name", "  "),
+            ("node.name", "real-app"),
+        ]);
+        assert_eq!(display, "Real-app");
+        assert_eq!(value, "real-app");
     }
 
     #[test]

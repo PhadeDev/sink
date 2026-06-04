@@ -46,15 +46,35 @@ fn desktop_dirs() -> Vec<PathBuf> {
     dirs
 }
 
+/// Every installed icon theme directory (hicolor first, then whatever
+/// themes the distro/user installed — Papirus, Adwaita, breeze, …).
+/// Many apps only ship icons inside a theme, so hicolor alone misses them.
 fn icon_theme_dirs() -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
+    let mut roots = Vec::new();
     if let Some(data) = dirs::data_dir() {
-        dirs.push(data.join("icons/hicolor"));
-        dirs.push(data.join("flatpak/exports/share/icons/hicolor"));
+        roots.push(data.join("icons"));
+        roots.push(data.join("flatpak/exports/share/icons"));
     }
-    dirs.push(PathBuf::from("/usr/share/icons/hicolor"));
-    dirs.push(PathBuf::from("/var/lib/flatpak/exports/share/icons/hicolor"));
-    dirs
+    roots.push(PathBuf::from("/usr/share/icons"));
+    roots.push(PathBuf::from("/var/lib/flatpak/exports/share/icons"));
+
+    let mut themes = Vec::new();
+    for root in roots {
+        // hicolor is the freedesktop fallback theme — search it first.
+        let hicolor = root.join("hicolor");
+        if hicolor.is_dir() {
+            themes.push(hicolor);
+        }
+        if let Ok(read) = fs::read_dir(&root) {
+            for entry in read.flatten() {
+                let path = entry.path();
+                if path.is_dir() && path.file_name().is_some_and(|n| n != "hicolor") {
+                    themes.push(path);
+                }
+            }
+        }
+    }
+    themes
 }
 
 fn parse_desktop_file(path: &Path) -> Option<DesktopEntry> {
@@ -122,10 +142,17 @@ fn icon_name_to_path(name: &str) -> Option<String> {
     if name.starts_with('/') && Path::new(name).exists() {
         return Some(name.to_string());
     }
-    const SIZES: [&str; 5] = ["64x64", "128x128", "256x256", "48x48", "32x32"];
+    const SIZES: [&str; 9] = [
+        "64x64", "128x128", "256x256", "96x96", "72x72", "48x48", "512x512", "32x32", "24x24",
+    ];
     for theme in icon_theme_dirs() {
         for size in SIZES {
             let p = theme.join(size).join("apps").join(format!("{name}.png"));
+            if p.exists() {
+                return Some(p.to_string_lossy().into_owned());
+            }
+            // Some themes nest the size the other way around (apps/<size>).
+            let p = theme.join("apps").join(size).join(format!("{name}.svg"));
             if p.exists() {
                 return Some(p.to_string_lossy().into_owned());
             }

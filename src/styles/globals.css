@@ -389,14 +389,6 @@ body,
   min-height: 0;
   overflow-x: auto;
 }
-/* center the groups when the window is wider than the content; auto
-   margins collapse to zero when it overflows, keeping scroll correct */
-.mix-scroll > :first-child {
-  margin-left: auto;
-}
-.mix-scroll > :last-child {
-  margin-right: auto;
-}
 .mix-group {
   display: flex;
   flex-direction: column;

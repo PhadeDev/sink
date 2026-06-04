@@ -40,10 +40,18 @@ impl SeenApps {
             return Self::default();
         };
         match fs::read_to_string(&path) {
-            Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
-                eprintln!("sink: ignoring malformed {}: {e}", path.display());
-                Self::default()
-            }),
+            Ok(raw) => {
+                let mut seen: Self = serde_json::from_str(&raw).unwrap_or_else(|e| {
+                    eprintln!("sink: ignoring malformed {}: {e}", path.display());
+                    Self::default()
+                });
+                // Scrub nameless entries recorded before empty property
+                // values were filtered out of identity resolution.
+                seen.apps.retain(|a| {
+                    !a.display_name.trim().is_empty() && !a.match_value.trim().is_empty()
+                });
+                seen
+            }
             Err(_) => Self::default(),
         }
     }
