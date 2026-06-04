@@ -127,8 +127,8 @@ export function MixerBoard() {
               appCount={counts.get(channel.name) ?? 0}
             />
           ))}
-          <MicStrip />
           {channels.length < MAX_CHANNELS && <AddChannelStrip />}
+          <MicStrip />
         </div>
       </div>
     </div>

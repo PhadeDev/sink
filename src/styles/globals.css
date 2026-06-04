@@ -396,7 +396,8 @@ body,
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
-  padding: var(--sp-4) var(--sp-3) var(--sp-3);
+  /* extra headroom so the hover delete × never overlaps the icon */
+  padding: 28px var(--sp-3) var(--sp-3);
   transition: border-color 0.12s;
 }
 .strip.muted {
