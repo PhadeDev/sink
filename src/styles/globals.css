@@ -1005,6 +1005,39 @@ body,
   background: #fff;
 }
 
+/* mic screen */
+.mic-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.mic-device-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.mic-device-select {
+  max-width: 100%;
+}
+.mic-device-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mic-gain-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.mic-gain-label {
+  font-size: var(--fs-meta);
+  color: var(--fg-secondary);
+  width: 42px;
+}
+.mic-gain-row .hslider {
+  flex: 1;
+}
+
 /* mini level meter (mic screen) */
 .mini-meter {
   height: 8px;

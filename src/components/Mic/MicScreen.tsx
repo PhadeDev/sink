@@ -5,7 +5,7 @@ import { perceptual } from "../../lib/audio";
 import { HSlider } from "../AppList/HSlider";
 import { Ms } from "../Icons";
 import { Popover } from "../Popover";
-import { ToggleRow } from "../Toggle";
+import { Toggle, ToggleRow } from "../Toggle";
 
 /** Live mono input level driven by the `levels` event stream. */
 function MicLevel() {
@@ -54,14 +54,14 @@ export function MicScreen() {
   const currentDevice = inputDevices.find((d) => d.name === micConfig.input_device);
   const deviceLabel =
     micConfig.input_device === null
-      ? "System default mic"
+      ? "System default"
       : (currentDevice?.description ?? micConfig.input_device);
 
   return (
     <div className="content">
       <div className="screen-head">
         <h1>Microphone</h1>
-        <div className="sub">Processed virtual mic — select "Sink Mic" in Discord/OBS</div>
+        <div className="sub">Select "Sink Mic" in Discord/OBS</div>
         <div className="screen-head-actions">
           {micConfig.enabled && !micConfig.muted && (
             <span className="tag live">
@@ -69,41 +69,37 @@ export function MicScreen() {
               Live
             </span>
           )}
-        </div>
-      </div>
-      <div className="screen-scroll" style={{ maxWidth: 720 }}>
-        <div className="card" style={{ padding: "var(--sp-2)" }}>
-          <ToggleRow
-            icon="mic"
-            title="Mic processing"
-            sub='Creates the "Sink Mic" virtual microphone'
+          <Toggle
             on={micConfig.enabled}
-            onToggle={() => void setMicConfig({ enabled: !micConfig.enabled })}
+            onClick={() => void setMicConfig({ enabled: !micConfig.enabled })}
           />
         </div>
-
-        {micConfig.enabled && (
+      </div>
+      <div className="screen-scroll" style={{ maxWidth: 680 }}>
+        {!micConfig.enabled ? (
+          <div className="empty-hint">
+            Mic processing is off.
+            <br />
+            Switch it on (top right) to create the "Sink Mic" virtual microphone.
+          </div>
+        ) : (
           <>
-            <div className="section-label">Input device</div>
-            <div className="card" style={{ padding: "var(--sp-2)" }}>
-              <div className="row">
+            <div className="section-label">Input</div>
+            <div className="card mic-card">
+              <div className="mic-device-row">
                 <div className="ricon">
                   <Ms name="settings_voice" />
                 </div>
-                <div className="rmain">
-                  <div className="rtitle">{deviceLabel}</div>
-                  <div className="rsub">Capture source for the chain</div>
-                </div>
-                <div style={{ position: "relative" }}>
-                  <button className="select" onClick={() => setDeviceOpen((o) => !o)}>
-                    <span>Change</span>
+                <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+                  <button className="select mic-device-select" onClick={() => setDeviceOpen((o) => !o)}>
+                    <span className="mic-device-name">{deviceLabel}</span>
                     <Ms name="expand_more" />
                   </button>
                   <Popover
                     open={deviceOpen}
                     onClose={() => setDeviceOpen(false)}
                     side="bottom"
-                    align="end"
+                    align="start"
                   >
                     <div
                       className={"menu-item" + (micConfig.input_device === null ? " sel" : "")}
@@ -132,40 +128,29 @@ export function MicScreen() {
                     ))}
                   </Popover>
                 </div>
-              </div>
-            </div>
-
-            <div className="section-label">Input level</div>
-            <div className="card">
-              <MicLevel />
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--sp-4)",
-                  marginTop: "var(--sp-4)",
-                }}
-              >
-                <span style={{ fontSize: "var(--fs-meta)", color: "var(--fg-secondary)", width: 64 }}>
-                  Gain
-                </span>
-                <HSlider
-                  value={micConfig.gain_percent}
-                  max={MAX_MIC_GAIN}
-                  onChange={(v) => void setMicConfig({ gain_percent: v })}
-                />
                 <button
                   className={"sbtn" + (micConfig.muted ? " on-mute" : "")}
                   style={{ width: 34 }}
-                  title="Mute mic"
+                  title={micConfig.muted ? "Unmute mic" : "Mute mic"}
                   onClick={() => void setMicConfig({ muted: !micConfig.muted })}
                 >
                   <Ms name={micConfig.muted ? "mic_off" : "mic"} style={{ fontSize: 18 }} />
                 </button>
               </div>
+
+              <MicLevel />
+
+              <div className="mic-gain-row">
+                <span className="mic-gain-label">Gain</span>
+                <HSlider
+                  value={micConfig.gain_percent}
+                  max={MAX_MIC_GAIN}
+                  onChange={(v) => void setMicConfig({ gain_percent: v })}
+                />
+              </div>
             </div>
 
-            <div className="section-label">Processing — gate → gain → compressor → limiter</div>
+            <div className="section-label">Processing</div>
             <div className="card" style={{ padding: "var(--sp-2)" }}>
               <ToggleRow
                 icon="noise_control_off"
