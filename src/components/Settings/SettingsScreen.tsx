@@ -12,6 +12,14 @@ interface DefaultDevices {
   input: string | null;
 }
 
+type LabelStyle = "plain" | "suffix" | "prefix";
+
+const LABEL_STYLES: { value: LabelStyle; label: string; example: string }[] = [
+  { value: "plain", label: "Plain", example: "Game" },
+  { value: "suffix", label: "Suffix", example: "Game (Sink)" },
+  { value: "prefix", label: "Prefix", example: "Sink · Game" },
+];
+
 /** Card row with a device dropdown for picking a system default. */
 function DeviceRow({
   icon,
@@ -69,6 +77,8 @@ export function SettingsScreen() {
   const [backendNative, setBackendNative] = useState<boolean | null>(null);
   const [version, setVersion] = useState("");
   const [defaults, setDefaults] = useState<DefaultDevices>({ output: null, input: null });
+  const [labelStyle, setLabelStyle] = useState<LabelStyle>("plain");
+  const [labelStyleOpen, setLabelStyleOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const outputDevices = useMixerStore((s) => s.outputDevices);
   const inputDevices = useMixerStore((s) => s.inputDevices);
@@ -77,6 +87,9 @@ export function SettingsScreen() {
     void invoke<boolean>("get_autostart").then(setAutostart);
     void invoke<{ native: boolean }>("get_backend_info").then((i) => setBackendNative(i.native));
     void invoke<DefaultDevices>("get_default_devices").then(setDefaults).catch(() => {});
+    void invoke<{ device_label_style: LabelStyle }>("get_prefs")
+      .then((p) => setLabelStyle(p.device_label_style))
+      .catch(() => {});
     void getVersion().then(setVersion);
   }, []);
 
@@ -84,6 +97,16 @@ export function SettingsScreen() {
     try {
       await invoke(kind === "output" ? "set_default_output" : "set_default_input", { name });
       setDefaults((d) => ({ ...d, [kind]: name }));
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const pickLabelStyle = async (style: LabelStyle) => {
+    try {
+      await invoke("set_device_label_style", { style });
+      setLabelStyle(style);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -105,7 +128,6 @@ export function SettingsScreen() {
     <div className="content">
       <div className="screen-head">
         <h1>Settings</h1>
-        <div className="sub">Sink behaves the same from the tray</div>
       </div>
       <div className="screen-scroll" style={{ maxWidth: 720 }}>
         {error && <div className="error-banner" style={{ borderRadius: 8 }}>{error}</div>}
@@ -126,8 +148,43 @@ export function SettingsScreen() {
             current={defaults.input}
             onPick={(name) => void pickDefault("input", name)}
           />
+          <div className="row">
+            <div className="ricon">
+              <Ms name="label" />
+            </div>
+            <div className="rmain">
+              <div className="rtitle">Device naming</div>
+              <div className="rsub">
+                {labelStyle === "plain"
+                  ? "Devices appear with their channel name, e.g. “Game”"
+                  : `Marks Sink's devices in other apps, e.g. “${LABEL_STYLES.find((s) => s.value === labelStyle)?.example}”`}
+              </div>
+            </div>
+            <div style={{ position: "relative" }}>
+              <button className="select" onClick={() => setLabelStyleOpen((o) => !o)}>
+                <span>{LABEL_STYLES.find((s) => s.value === labelStyle)?.label}</span>
+                <Ms name="expand_more" />
+              </button>
+              <Popover open={labelStyleOpen} onClose={() => setLabelStyleOpen(false)} side="bottom" align="end">
+                {LABEL_STYLES.map((s) => (
+                  <div
+                    key={s.value}
+                    className={"menu-item" + (s.value === labelStyle ? " sel" : "")}
+                    onClick={() => {
+                      void pickLabelStyle(s.value);
+                      setLabelStyleOpen(false);
+                    }}
+                  >
+                    <span>{s.example}</span>
+                    {s.value === labelStyle && <Ms name="check" style={{ marginLeft: "auto" }} />}
+                  </div>
+                ))}
+              </Popover>
+            </div>
+          </div>
           <div className="empty-hint" style={{ padding: "var(--sp-2) var(--sp-4)", textAlign: "left" }}>
-            Channels set to "System default" and the mic chain follow these.
+            Channels set to "System default" and the mic chain follow the defaults above. Naming
+            changes apply to devices created after a restart (renames apply immediately).
           </div>
         </div>
 

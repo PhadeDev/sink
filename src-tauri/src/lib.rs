@@ -81,6 +81,8 @@ pub fn run() {
             commands::settings::get_default_devices,
             commands::settings::set_default_output,
             commands::settings::set_default_input,
+            commands::settings::get_prefs,
+            commands::settings::set_device_label_style,
         ])
         .setup(move |app| {
             build_tray(app)?;

@@ -74,11 +74,12 @@ pub fn load_profile(
         let mixer = state.lock_mixer()?;
         mixer.channel_defs.channels.clone()
     };
+    let prefs = state.lock_mixer()?.prefs.clone();
     for channel in &profile.channels {
         if !current.iter().any(|c| c.name == channel.name) {
             state
                 .backend
-                .create_virtual_sink(&channel.name, &channel.label)
+                .create_virtual_sink(&channel.name, &prefs.decorate(&channel.label))
                 .map_err(|e| e.to_string())?;
         }
     }
@@ -142,7 +143,7 @@ pub fn load_profile(
     }
     for bus in &target_buses.buses {
         if current_buses.get(&bus.name).is_none() {
-            if let Err(e) = state.backend.create_bus(&bus.name, &bus.label) {
+            if let Err(e) = state.backend.create_bus(&bus.name, &prefs.decorate(&bus.label)) {
                 eprintln!("sink: profile mix {} failed: {e}", bus.name);
                 continue;
             }

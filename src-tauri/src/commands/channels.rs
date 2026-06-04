@@ -22,8 +22,11 @@ pub fn add_channel(
         (def, mixer.channel_defs.clone())
     };
 
+    let prefs = state.lock_mixer()?.prefs.clone();
     if let Err(e) = (|| {
-        state.backend.create_virtual_sink(&def.name, &def.label)?;
+        state
+            .backend
+            .create_virtual_sink(&def.name, &prefs.decorate(&def.label))?;
         state.backend.set_sink_volume(&def.name, 100)?;
         state.backend.set_sink_mute(&def.name, false)?;
         state.backend.set_channel_output(&def.name, None)

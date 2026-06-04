@@ -65,13 +65,13 @@ export function MicScreen() {
       <div className="screen-head">
         <h1>Microphone</h1>
         <div className="sub">
-          Takes your mic in, processes it, publishes "{micConfig.output_label}" for any app
+          Other apps see your processed mic as "{micConfig.output_label}"
         </div>
         <div className="screen-head-actions">
-          {micConfig.enabled && !micConfig.muted && (
-            <span className="tag live">
+          {micConfig.enabled && (
+            <span className={"tag" + (micConfig.muted ? " tag-off" : " live")}>
               <Ms name="fiber_manual_record" style={{ fontSize: 11 }} />
-              Live
+              {micConfig.muted ? "Muted" : "Live"}
             </span>
           )}
           <Toggle
@@ -91,6 +91,18 @@ export function MicScreen() {
           <>
             <div className="section-label">Input</div>
             <div className="card mic-card">
+              <div className="mic-gain-row">
+                <span className="mic-gain-label">Name</span>
+                <input
+                  className="menu-input"
+                  style={{ flex: 1 }}
+                  value={micConfig.output_label}
+                  maxLength={32}
+                  title="How other apps list your processed mic"
+                  onChange={(e) => void setMicConfig({ output_label: e.target.value })}
+                />
+              </div>
+
               <div className="mic-device-row">
                 <div className="ricon">
                   <Ms name="settings_voice" />
@@ -151,17 +163,6 @@ export function MicScreen() {
                 </button>
               </div>
 
-              <div className="mic-gain-row">
-                <span className="mic-gain-label">Name</span>
-                <input
-                  className="menu-input"
-                  style={{ flex: 1 }}
-                  value={micConfig.output_label}
-                  maxLength={32}
-                  title="How other apps list your processed mic"
-                  onChange={(e) => void setMicConfig({ output_label: e.target.value })}
-                />
-              </div>
 
               <MicLevel />
 

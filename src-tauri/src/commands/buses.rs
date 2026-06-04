@@ -18,7 +18,8 @@ pub fn add_bus(state: State<'_, AppState>, label: String) -> Result<(), String> 
         let def = mixer.buses.add(&label).map_err(|e| e.to_string())?;
         (def, mixer.buses.clone())
     };
-    if let Err(e) = state.backend.create_bus(&def.name, &def.label) {
+    let prefs = state.lock_mixer()?.prefs.clone();
+    if let Err(e) = state.backend.create_bus(&def.name, &prefs.decorate(&def.label)) {
         let mut mixer = state.lock_mixer()?;
         let _ = mixer.buses.remove(&def.name);
         return Err(e.to_string());
@@ -45,10 +46,11 @@ pub fn rename_bus(state: State<'_, AppState>, name: String, label: String) -> Re
         (def, mixer.buses.clone())
     };
 
+    let prefs = state.lock_mixer()?.prefs.clone();
     state.backend.destroy_bus(&name).map_err(|e| e.to_string())?;
     state
         .backend
-        .create_bus(&def.name, &def.label)
+        .create_bus(&def.name, &prefs.decorate(&def.label))
         .map_err(|e| e.to_string())?;
     state
         .backend

@@ -11,12 +11,16 @@ pub fn get_mic_config(state: State<'_, AppState>) -> Result<MicConfig, String> {
     Ok(mixer.mic.clone())
 }
 
-/// Apply and persist the mic chain configuration.
+/// Apply and persist the mic chain configuration. The published label is
+/// decorated per the device-naming preference at the backend boundary;
+/// the stored config stays raw.
 #[tauri::command]
 pub fn set_mic_config(state: State<'_, AppState>, config: MicConfig) -> Result<(), String> {
+    let mut applied = config.clone();
+    applied.output_label = state.lock_mixer()?.prefs.decorate(&config.output_label);
     state
         .backend
-        .set_mic_config(&config)
+        .set_mic_config(&applied)
         .map_err(|e| e.to_string())?;
     {
         let mut mixer = state.lock_mixer()?;

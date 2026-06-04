@@ -24,7 +24,7 @@ export function MicStrip() {
         <div className="strip-icon strip-icon-mic">
           <Ms name="mic" />
         </div>
-        <div className="strip-name">Mic</div>
+        <div className="strip-name">{micConfig.output_label}</div>
         <div className="strip-meta">capture</div>
       </div>
 

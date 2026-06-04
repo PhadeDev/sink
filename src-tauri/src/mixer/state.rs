@@ -29,6 +29,8 @@ pub struct MixerState {
     pub active_profile: Option<String>,
     /// User-defined mixes (record buses), persisted to disk.
     pub buses: crate::persistence::buses::Buses,
+    /// App preferences (device naming etc.), persisted to disk.
+    pub prefs: crate::persistence::prefs::Prefs,
     /// Stream indices already considered for auto-routing this session.
     /// Each stream is enforced once, on first sight, so a user moving a
     /// stream elsewhere (here or in pavucontrol) isn't fought every poll.

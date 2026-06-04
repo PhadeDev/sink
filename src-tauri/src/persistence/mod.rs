@@ -6,6 +6,7 @@ pub mod buses;
 pub mod channels;
 pub mod mic;
 pub mod outputs;
+pub mod prefs;
 pub mod seen;
 pub mod profiles;
 pub mod wireplumber;

@@ -1420,3 +1420,11 @@ body,
   border-radius: 1px;
   pointer-events: none;
 }
+
+/* greyed status tag (e.g. mic muted) */
+.tag.tag-off {
+  opacity: 0.55;
+}
+.tag.tag-off .ms {
+  color: var(--fg-muted);
+}

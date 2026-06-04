@@ -2,6 +2,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::persistence::autostart;
+use crate::persistence::prefs::{DeviceLabelStyle, Prefs};
 use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]
@@ -32,6 +33,26 @@ pub fn set_autostart(enabled: bool) -> Result<bool, String> {
     };
     result.map_err(|e| e.to_string())?;
     Ok(autostart::is_enabled())
+}
+
+#[tauri::command]
+pub fn get_prefs(state: State<'_, AppState>) -> Result<Prefs, String> {
+    Ok(state.lock_mixer()?.prefs.clone())
+}
+
+/// Set the device naming style. Existing nodes keep their labels until
+/// they are recreated (restart or rename).
+#[tauri::command]
+pub fn set_device_label_style(
+    state: State<'_, AppState>,
+    style: DeviceLabelStyle,
+) -> Result<(), String> {
+    let prefs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.prefs.device_label_style = style;
+        mixer.prefs.clone()
+    };
+    prefs.save().map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Clone, Serialize)]

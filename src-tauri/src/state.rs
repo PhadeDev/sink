@@ -34,6 +34,7 @@ impl AppState {
             buses,
             seen: crate::persistence::seen::SeenApps::load(),
             active_profile: crate::persistence::active::load(),
+            prefs: crate::persistence::prefs::Prefs::load(),
             ..MixerState::default()
         };
         Self {

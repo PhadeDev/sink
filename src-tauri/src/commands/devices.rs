@@ -110,15 +110,15 @@ pub fn init_virtual_devices(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let defs = {
+    let (defs, prefs) = {
         let mixer = state.lock_mixer()?;
-        mixer.channel_defs.clone()
+        (mixer.channel_defs.clone(), mixer.prefs.clone())
     };
 
     for def in &defs.channels {
         state
             .backend
-            .create_virtual_sink(&def.name, &def.label)
+            .create_virtual_sink(&def.name, &prefs.decorate(&def.label))
             .map_err(|e| e.to_string())?;
         // Known starting point — adopted sinks from a previous run may carry
         // stale volume/mute.
@@ -151,7 +151,7 @@ pub fn init_virtual_devices(
 
     // Bring up the user's mixes and their memberships.
     for bus in &buses.buses {
-        if let Err(e) = state.backend.create_bus(&bus.name, &bus.label) {
+        if let Err(e) = state.backend.create_bus(&bus.name, &prefs.decorate(&bus.label)) {
             eprintln!("sink: creating mix {} failed: {e}", bus.name);
             continue;
         }
@@ -162,7 +162,9 @@ pub fn init_virtual_devices(
 
     // Bring the mic chain up if it was enabled last session.
     if mic.enabled {
-        if let Err(e) = state.backend.set_mic_config(&mic) {
+        let mut applied = mic.clone();
+        applied.output_label = prefs.decorate(&mic.output_label);
+        if let Err(e) = state.backend.set_mic_config(&applied) {
             eprintln!("sink: mic chain init failed: {e}");
         }
     }
