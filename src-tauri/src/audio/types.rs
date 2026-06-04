@@ -58,3 +58,31 @@ pub struct OutputDevice {
     pub name: String,
     pub description: String,
 }
+
+/// Phase 3 mic chain configuration (persisted; applied live).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MicConfig {
+    pub enabled: bool,
+    /// node.name of the hardware mic to capture (None = system default).
+    pub input_device: Option<String>,
+    /// 0–200; 100 = unity.
+    pub gain_percent: u8,
+    pub gate_enabled: bool,
+    pub comp_enabled: bool,
+    pub limiter_enabled: bool,
+    pub muted: bool,
+}
+
+impl Default for MicConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            input_device: None,
+            gain_percent: 100,
+            gate_enabled: true,
+            comp_enabled: true,
+            limiter_enabled: true,
+            muted: false,
+        }
+    }
+}

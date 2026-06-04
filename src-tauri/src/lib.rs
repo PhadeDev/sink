@@ -52,6 +52,9 @@ pub fn run() {
             commands::routing::toggle_channel_mute,
             commands::routing::set_app_volume,
             commands::routing::rename_app,
+            commands::mic::get_mic_config,
+            commands::mic::set_mic_config,
+            commands::mic::get_input_devices,
             commands::profiles::list_profiles,
             commands::profiles::save_profile,
             commands::profiles::load_profile,
@@ -85,11 +88,18 @@ pub fn run() {
 /// Peaks are drained (read-and-reset), so silence decays to zero.
 fn spawn_level_emitter(handle: tauri::AppHandle, levels: Arc<LevelStore>) {
     std::thread::spawn(move || loop {
-        let payload: HashMap<&'static str, [f32; 2]> = VIRTUAL_SINKS
+        let mut payload: HashMap<&'static str, [f32; 2]> = VIRTUAL_SINKS
             .iter()
             .enumerate()
             .map(|(slot, (name, _))| (*name, [levels.drain(slot, 0), levels.drain(slot, 1)]))
             .collect();
+        payload.insert(
+            "sink_mic",
+            [
+                levels.drain(audio::pw_native::levels::MIC_SLOT, 0),
+                levels.drain(audio::pw_native::levels::MIC_SLOT, 1),
+            ],
+        );
         if handle.emit("levels", &payload).is_err() {
             // App is shutting down.
             break;

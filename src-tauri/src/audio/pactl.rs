@@ -297,6 +297,31 @@ impl AudioBackend for PactlBackend {
         Ok(())
     }
 
+    fn list_input_devices(&self) -> Result<Vec<OutputDevice>, SinkError> {
+        #[derive(Deserialize)]
+        struct PactlSource {
+            index: u32,
+            name: String,
+            description: String,
+        }
+        let sources: Vec<PactlSource> = Self::query("sources")?;
+        Ok(sources
+            .into_iter()
+            .filter(|s| !s.name.ends_with(".monitor"))
+            .map(|s| OutputDevice {
+                index: s.index,
+                name: s.name,
+                description: s.description,
+            })
+            .collect())
+    }
+
+    fn set_mic_config(&self, _config: &crate::audio::types::MicConfig) -> Result<(), SinkError> {
+        Err(SinkError::Config(
+            "the mic DSP chain requires the native PipeWire backend".into(),
+        ))
+    }
+
     fn set_channel_output(
         &self,
         sink_name: &str,

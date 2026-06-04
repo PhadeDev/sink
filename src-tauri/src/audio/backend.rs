@@ -1,4 +1,4 @@
-use crate::audio::types::{AppStream, OutputDevice};
+use crate::audio::types::{AppStream, MicConfig, OutputDevice};
 use crate::error::SinkError;
 
 /// Abstraction over the underlying audio system.
@@ -31,4 +31,11 @@ pub trait AudioBackend: Send + Sync {
         sink_name: &str,
         output_name: Option<&str>,
     ) -> Result<(), SinkError>;
+
+    /// Hardware capture devices (microphones) for the Phase 3 mic chain.
+    fn list_input_devices(&self) -> Result<Vec<OutputDevice>, SinkError>;
+
+    /// Apply the Phase 3 mic chain configuration. Native-backend only; the
+    /// pactl fallback reports it as unsupported.
+    fn set_mic_config(&self, config: &MicConfig) -> Result<(), SinkError>;
 }

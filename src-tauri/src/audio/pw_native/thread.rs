@@ -18,14 +18,20 @@ use pw::types::ObjectType;
 
 use crate::audio::pw_native::levels::LevelStore;
 use crate::audio::pw_native::meter::MeterHandle;
+use crate::audio::pw_native::mic::{MicStreams, MIC_NODE};
 use crate::audio::pw_native::pods;
-use crate::audio::types::{is_virtual_sink, label_for, AppStream, OutputDevice};
+use crate::audio::types::{is_virtual_sink, label_for, AppStream, MicConfig, OutputDevice};
 use crate::error::SinkError;
 
 const STREAM_CLASS: &str = "Stream/Output/Audio";
 const SINK_CLASS: &str = "Audio/Sink";
-/// node.name prefix of our own meter capture streams (excluded everywhere).
-pub const METER_PREFIX: &str = "sink-meter-";
+const SOURCE_CLASS: &str = "Audio/Source";
+const VIRTUAL_SOURCE_CLASS: &str = "Audio/Source/Virtual";
+/// node.name prefix of all our internal helper streams (meters, mic chain) —
+/// excluded from stream listings and node tracking.
+pub const INTERNAL_PREFIX: &str = "sink-internal-";
+/// node.name prefix of our meter capture streams.
+pub const METER_PREFIX: &str = "sink-internal-meter-";
 
 type Reply<T> = mpsc::Sender<Result<T, SinkError>>;
 
@@ -40,6 +46,10 @@ pub enum Cmd {
     MoveStream { id: u32, sink_name: String, reply: Reply<()> },
     /// Route a channel's monitor to an output device (None = follow default).
     SetChannelOutput { sink_name: String, output_name: Option<String>, reply: Reply<()> },
+    /// Apply mic chain configuration (create/destroy/re-tune as needed).
+    SetMicConfig { config: MicConfig, reply: Reply<()> },
+    /// Hardware capture devices (microphones).
+    ListInputs { reply: Reply<Vec<OutputDevice>> },
 }
 
 struct PortEntry {
@@ -86,6 +96,12 @@ struct State {
     channel_outputs: HashMap<String, Option<String>>,
     /// Channel sink name -> live loopback links: (monitor port, input port, proxy).
     channel_links: HashMap<String, Vec<(u32, u32, pw::link::Link)>>,
+    /// Phase 3 mic chain.
+    mic_config: MicConfig,
+    /// Proxy for the sink_mic virtual source (kept alive while enabled).
+    mic_source: Option<Node>,
+    mic_streams: Option<MicStreams>,
+    levels: Option<Arc<LevelStore>>,
 }
 
 impl State {
@@ -138,7 +154,10 @@ fn setup_and_run(
 
     CORE.with(|c| *c.borrow_mut() = Some(core.clone()));
 
-    let state = Rc::new(RefCell::new(State::default()));
+    let state = Rc::new(RefCell::new(State {
+        levels: Some(levels.clone()),
+        ..State::default()
+    }));
 
     // ---- registry listeners ----
     let state_g = state.clone();
@@ -288,7 +307,11 @@ fn on_node(
 ) {
     let Some(dict) = global.props else { return };
     let media_class = dict.get("media.class").unwrap_or_default().to_string();
-    if media_class != STREAM_CLASS && media_class != SINK_CLASS {
+    if media_class != STREAM_CLASS
+        && media_class != SINK_CLASS
+        && media_class != SOURCE_CLASS
+        && media_class != VIRTUAL_SOURCE_CLASS
+    {
         return;
     }
     let props: HashMap<String, String> = dict
@@ -296,8 +319,8 @@ fn on_node(
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
     let node_name = props.get("node.name").cloned().unwrap_or_default();
-    // Never track our own meter capture streams.
-    if node_name.starts_with(METER_PREFIX) {
+    // Never track our own internal helper streams (meters, mic chain).
+    if node_name.starts_with(INTERNAL_PREFIX) {
         return;
     }
 
@@ -370,10 +393,43 @@ fn on_node(
         ensure_all_links(state);
         return;
     }
+
+    // The virtual mic source came up: attach the DSP streams.
+    if media_class == VIRTUAL_SOURCE_CLASS && node_name == MIC_NODE {
+        drop(s);
+        build_mic_streams(state, global.id);
+        return;
+    }
+
     drop(s);
     // A new hardware sink may be the (returning) target of a channel.
     if media_class == SINK_CLASS {
         ensure_all_links(state);
+    }
+}
+
+/// (Re)build the mic capture/DSP/playback streams against the virtual
+/// source node with global id `source_id`.
+fn build_mic_streams(state: &Rc<RefCell<State>>, source_id: u32) {
+    let Some(core) = CORE.with(|c| c.borrow().clone()) else {
+        return;
+    };
+    let mut s = state.borrow_mut();
+    if !s.mic_config.enabled {
+        return;
+    }
+    let mic_target = s
+        .mic_config
+        .input_device
+        .as_deref()
+        .and_then(|name| s.node_by_name(name))
+        .map(|n| n.id);
+    let Some(levels) = s.levels.clone() else { return };
+    match MicStreams::new(&core, &s.mic_config, mic_target, source_id, levels) {
+        Ok(streams) => {
+            s.mic_streams = Some(streams);
+        }
+        Err(e) => eprintln!("sink: mic chain failed: {e}"),
     }
 }
 
@@ -615,6 +671,103 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         Cmd::SetNodeVolumeById { id, percent, reply } => {
             let s = state.borrow();
             let _ = reply.send(set_props(s.nodes.get(&id), Some(percent), None));
+        }
+        Cmd::SetMicConfig { config, reply } => {
+            let (needs_create, needs_destroy, needs_rebuild, source_id) = {
+                let mut s = state.borrow_mut();
+                let prev = s.mic_config.clone();
+                s.mic_config = config.clone();
+
+                // Live-tunable params apply without a rebuild.
+                if let Some(streams) = &s.mic_streams {
+                    streams.params.apply(&config);
+                }
+
+                let source_id = s.node_by_name(MIC_NODE).map(|n| n.id);
+                let needs_create = config.enabled && s.mic_source.is_none();
+                let needs_destroy = !config.enabled && s.mic_source.is_some();
+                let needs_rebuild = config.enabled
+                    && s.mic_streams.is_some()
+                    && prev.input_device != config.input_device;
+                (needs_create, needs_destroy, needs_rebuild, source_id)
+            };
+
+            if needs_destroy {
+                let mut s = state.borrow_mut();
+                s.mic_streams = None;
+                if let Some(proxy) = s.mic_source.take() {
+                    if let Some(core) = CORE.with(|c| c.borrow().clone()) {
+                        let _ = core.destroy_object(proxy);
+                    }
+                }
+                let _ = reply.send(Ok(()));
+                return;
+            }
+
+            if needs_create {
+                let Some(core) = CORE.with(|c| c.borrow().clone()) else {
+                    let _ = reply.send(Err(SinkError::Config("core is gone".into())));
+                    return;
+                };
+                match core.create_object::<Node>(
+                    "adapter",
+                    &pw::properties::properties! {
+                        "factory.name" => "support.null-audio-sink",
+                        "node.name" => MIC_NODE,
+                        "node.description" => "Sink Mic",
+                        "media.class" => VIRTUAL_SOURCE_CLASS,
+                        "audio.position" => "[ MONO ]",
+                    },
+                ) {
+                    Ok(proxy) => {
+                        state.borrow_mut().mic_source = Some(proxy);
+                        // Streams attach when the global appears (on_node).
+                    }
+                    Err(e) => {
+                        let _ =
+                            reply.send(Err(SinkError::Config(format!("create mic source: {e}"))));
+                        return;
+                    }
+                }
+            } else if needs_rebuild {
+                state.borrow_mut().mic_streams = None;
+                if let Some(id) = source_id {
+                    build_mic_streams(state, id);
+                }
+            } else if config.enabled && source_id.is_some() {
+                // Source exists but streams may be missing (earlier failure
+                // or config re-applied at startup) — attach if needed.
+                let missing = state.borrow().mic_streams.is_none();
+                if missing {
+                    if let Some(id) = source_id {
+                        build_mic_streams(state, id);
+                    }
+                }
+            }
+            let _ = reply.send(Ok(()));
+        }
+        Cmd::ListInputs { reply } => {
+            let s = state.borrow();
+            let inputs = s
+                .nodes
+                .values()
+                .filter(|n| {
+                    n.media_class == SOURCE_CLASS
+                        || (n.media_class == VIRTUAL_SOURCE_CLASS
+                            && n.props.get("node.name").map(String::as_str) != Some(MIC_NODE))
+                })
+                .map(|n| OutputDevice {
+                    index: n.id,
+                    name: n.props.get("node.name").cloned().unwrap_or_default(),
+                    description: n
+                        .props
+                        .get("node.description")
+                        .or_else(|| n.props.get("node.nick"))
+                        .cloned()
+                        .unwrap_or_default(),
+                })
+                .collect();
+            let _ = reply.send(Ok(inputs));
         }
         Cmd::SetChannelOutput { sink_name, output_name, reply } => {
             if !is_virtual_sink(&sink_name) {

@@ -89,10 +89,10 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
-    let outputs = {
+    let (outputs, mic) = {
         let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
         mixer.init_defaults();
-        mixer.outputs.clone()
+        (mixer.outputs.clone(), mixer.mic.clone())
     };
 
     // Wire every channel to its saved output (or the system default) so
@@ -100,6 +100,13 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
     for (name, _) in VIRTUAL_SINKS {
         if let Err(e) = state.backend.set_channel_output(name, outputs.get(name)) {
             eprintln!("sink: output routing for {name} failed: {e}");
+        }
+    }
+
+    // Bring the mic chain up if it was enabled last session.
+    if mic.enabled {
+        if let Err(e) = state.backend.set_mic_config(&mic) {
+            eprintln!("sink: mic chain init failed: {e}");
         }
     }
     Ok(())

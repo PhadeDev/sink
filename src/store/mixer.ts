@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppStream, OutputDevice, VirtualSink } from "../types";
+import type { AppStream, MicConfig, OutputDevice, VirtualSink } from "../types";
 
 // Faders fire on every pointer move; debounce backend calls per target so a
 // drag doesn't spawn a pactl subprocess per pixel. UI state updates
@@ -35,6 +35,11 @@ interface MixerStore {
   setChannelOutput: (sinkName: string, outputName: string | null) => Promise<void>;
   /** Sonar-style "same device on all channels". */
   setAllOutputs: (outputName: string | null) => Promise<void>;
+  /** Mic chain (Phase 3). Null until loaded. */
+  micConfig: MicConfig | null;
+  inputDevices: OutputDevice[];
+  fetchMic: () => Promise<void>;
+  setMicConfig: (patch: Partial<MicConfig>) => Promise<void>;
   profiles: string[];
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
@@ -65,6 +70,8 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   setLevels: (levels) => set({ levels }),
   outputDevices: [],
   channelOutputs: {},
+  micConfig: null,
+  inputDevices: [],
   profiles: [],
   activeProfile: null,
   error: null,
@@ -80,6 +87,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         get().fetchAppStreams(),
         get().fetchProfiles(),
         get().fetchOutputs(),
+        get().fetchMic(),
       ]);
     } catch (e) {
       set({ error: String(e) });
@@ -193,6 +201,31 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   setAllOutputs: async (outputName) => {
     for (const channel of get().channels) {
       await get().setChannelOutput(channel.name, outputName);
+    }
+  },
+
+  fetchMic: async () => {
+    try {
+      const [micConfig, inputDevices] = await Promise.all([
+        invoke<MicConfig>("get_mic_config"),
+        invoke<OutputDevice[]>("get_input_devices"),
+      ]);
+      set({ micConfig, inputDevices });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  setMicConfig: async (patch) => {
+    const current = get().micConfig;
+    if (!current) return;
+    const config = { ...current, ...patch };
+    set({ micConfig: config });
+    try {
+      await invoke("set_mic_config", { config });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchMic();
     }
   },
 

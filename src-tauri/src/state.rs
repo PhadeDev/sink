@@ -18,6 +18,7 @@ impl AppState {
             assignments: crate::persistence::assignments::Assignments::load(),
             aliases: crate::persistence::aliases::Aliases::load(),
             outputs: crate::persistence::outputs::ChannelOutputs::load(),
+            mic: crate::persistence::mic::load(),
             ..MixerState::default()
         };
         Self {

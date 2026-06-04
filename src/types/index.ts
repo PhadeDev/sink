@@ -29,7 +29,23 @@ export interface OutputDevice {
   description: string;
 }
 
+/** Phase 3 mic chain configuration (mirrors Rust MicConfig). */
+export interface MicConfig {
+  enabled: boolean;
+  /** node.name of the hardware mic (null = system default). */
+  input_device: string | null;
+  /** 0–200; 100 = unity. */
+  gain_percent: number;
+  gate_enabled: boolean;
+  comp_enabled: boolean;
+  limiter_enabled: boolean;
+  muted: boolean;
+}
+
 /** Sent as sink_name to unassign a stream (backend moves it to the default sink). */
 export const UNASSIGNED = "";
 
 export const MAX_VOLUME = 150;
+export const MAX_MIC_GAIN = 200;
+/** Levels key for the mic chain. */
+export const MIC_LEVEL_KEY = "sink_mic";

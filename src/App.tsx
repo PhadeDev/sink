@@ -2,15 +2,15 @@ import { useState } from "react";
 import { TitleBar } from "./components/TitleBar/TitleBar";
 import { MixerBoard } from "./components/MixerBoard/MixerBoard";
 import { AppList } from "./components/AppList/AppList";
+import { MicScreen } from "./components/Mic/MicScreen";
 import { Ms } from "./components/Icons";
 import { useAudio } from "./hooks/useAudio";
 import { useMixerStore } from "./store/mixer";
 
-// Phase 1 screens. The rail grows as later phases land
-// (Routing rules, Sinks, Devices, Mic).
 const NAV = [
   { id: "mixer", icon: "graphic_eq", label: "Mixer" },
   { id: "apps", icon: "grid_view", label: "Apps" },
+  { id: "mic", icon: "mic", label: "Mic" },
 ] as const;
 
 type NavId = (typeof NAV)[number]["id"];
@@ -46,7 +46,7 @@ export default function App() {
           ))}
         </nav>
 
-        {nav === "mixer" ? <MixerBoard /> : <AppList />}
+        {nav === "mixer" ? <MixerBoard /> : nav === "apps" ? <AppList /> : <MicScreen />}
       </div>
     </div>
   );

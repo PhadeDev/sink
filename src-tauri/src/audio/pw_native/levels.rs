@@ -2,11 +2,14 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::audio::types::VIRTUAL_SINKS;
 
-/// Lock-free per-channel peak store: 4 virtual sinks × stereo, written by
-/// the realtime meter capture callbacks, drained by the level emitter.
-/// Values are f32 amplitudes bit-cast into AtomicU32.
+/// Meter slot for the mic chain (after the 4 virtual sinks).
+pub const MIC_SLOT: usize = 4;
+
+/// Lock-free per-channel peak store: 4 virtual sinks + mic, × stereo,
+/// written by the realtime meter/DSP callbacks, drained by the level
+/// emitter. Values are f32 amplitudes bit-cast into AtomicU32.
 pub struct LevelStore {
-    peaks: [AtomicU32; 8],
+    peaks: [AtomicU32; 10],
 }
 
 impl LevelStore {

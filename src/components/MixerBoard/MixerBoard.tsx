@@ -1,5 +1,6 @@
 import { useMixerStore } from "../../store/mixer";
 import { ChannelStrip } from "./ChannelStrip";
+import { MicStrip } from "./MicStrip";
 import { OutputSelect } from "./OutputSelect";
 
 export function MixerBoard() {
@@ -54,6 +55,7 @@ export function MixerBoard() {
               appCount={counts.get(channel.name) ?? 0}
             />
           ))}
+          <MicStrip />
         </div>
       </div>
     </div>

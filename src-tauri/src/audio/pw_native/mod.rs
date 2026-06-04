@@ -5,9 +5,12 @@
 //!
 //! Extras over the pactl backend: real per-sink level metering (`levels`).
 
+mod dsp;
 pub mod levels;
 pub mod meter;
+mod mic;
 mod pods;
+mod ring;
 mod thread;
 
 use std::sync::mpsc;
@@ -135,5 +138,14 @@ impl AudioBackend for PipeWireBackend {
             output_name,
             reply,
         })
+    }
+
+    fn list_input_devices(&self) -> Result<Vec<crate::audio::types::OutputDevice>, SinkError> {
+        self.request(|reply| Cmd::ListInputs { reply })
+    }
+
+    fn set_mic_config(&self, config: &crate::audio::types::MicConfig) -> Result<(), SinkError> {
+        let config = config.clone();
+        self.request(|reply| Cmd::SetMicConfig { config, reply })
     }
 }
