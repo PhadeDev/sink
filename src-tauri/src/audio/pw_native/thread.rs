@@ -49,6 +49,8 @@ pub enum Cmd {
     MoveStream { id: u32, sink_name: String, reply: Reply<()> },
     /// Route a channel's monitor to an output device (None = follow default).
     SetChannelOutput { sink_name: String, output_name: Option<String>, reply: Reply<()> },
+    /// Include/exclude a channel's monitor from the Stream Mix source.
+    SetStreamMix { sink_name: String, enabled: bool, reply: Reply<()> },
     /// Apply mic chain configuration (create/destroy/re-tune as needed).
     SetMicConfig { config: MicConfig, reply: Reply<()> },
     /// Hardware capture devices (microphones).
@@ -104,6 +106,8 @@ struct State {
     ports: HashMap<u32, PortEntry>,
     /// Channel sink name -> chosen output node.name (None = follow default).
     channel_outputs: HashMap<String, Option<String>>,
+    /// Channels excluded from the Stream Mix (absent = included).
+    stream_mix_excluded: std::collections::HashSet<String>,
     /// Channel sink name -> live loopback links: (monitor port, input port, proxy).
     channel_links: HashMap<String, Vec<(u32, u32, pw::link::Link)>>,
     /// Phase 3 mic chain.
@@ -644,8 +648,9 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
             }
         }
 
-        // ---- stream mix links ----
+        // ---- stream mix links (skipped for excluded channels) ----
         let mix_pairs = stream_mix_id
+            .filter(|_| !s.stream_mix_excluded.contains(sink_name))
             .map(|t| desired_pairs(&s, channel_id, t))
             .unwrap_or_default();
         let mix_current: Vec<(u32, u32)> = s
@@ -818,6 +823,18 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         Cmd::SetNodeVolumeById { id, percent, reply } => {
             let s = state.borrow();
             let _ = reply.send(set_props(s.nodes.get(&id), Some(percent), None));
+        }
+        Cmd::SetStreamMix { sink_name, enabled, reply } => {
+            {
+                let mut s = state.borrow_mut();
+                if enabled {
+                    s.stream_mix_excluded.remove(&sink_name);
+                } else {
+                    s.stream_mix_excluded.insert(sink_name);
+                }
+            }
+            ensure_all_links(state);
+            let _ = reply.send(Ok(()));
         }
         Cmd::SetMicConfig { config, reply } => {
             let (needs_create, needs_destroy, needs_rebuild, source_exists) = {

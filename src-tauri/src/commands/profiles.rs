@@ -110,6 +110,12 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
         {
             eprintln!("sink: profile output for {} failed: {e}", channel.name);
         }
+        if let Err(e) = state
+            .backend
+            .set_channel_stream_mix(&channel.name, channel.stream_mix)
+        {
+            eprintln!("sink: profile stream-mix for {} failed: {e}", channel.name);
+        }
     }
 
     let (defs, assignments, outputs) = {
@@ -122,6 +128,7 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
                     name: c.name.clone(),
                     label: c.label.clone(),
                     icon: c.icon.clone(),
+                    stream_mix: c.stream_mix,
                 })
                 .collect(),
         };
@@ -162,6 +169,7 @@ pub fn create_blank_profile(name: String) -> Result<(), String> {
             icon: def.icon,
             volume_percent: 100,
             muted: false,
+            stream_mix: def.stream_mix,
         })
         .collect();
     let profile = Profile {

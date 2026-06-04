@@ -318,6 +318,12 @@ impl AudioBackend for PactlBackend {
         ))
     }
 
+    fn set_channel_stream_mix(&self, _sink_name: &str, _enabled: bool) -> Result<(), SinkError> {
+        Err(SinkError::Config(
+            "the Stream Mix requires the native PipeWire backend".into(),
+        ))
+    }
+
     fn get_default_devices(&self) -> Result<(Option<String>, Option<String>), SinkError> {
         let sink = Self::run(&["get-default-sink"]).ok().map(|s| s.trim().to_string());
         let source = Self::run(&["get-default-source"]).ok().map(|s| s.trim().to_string());

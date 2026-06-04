@@ -136,13 +136,18 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
     };
 
     // Wire every channel to its saved output (or the system default) so
-    // channels are audible from the start.
+    // channels are audible from the start, and apply Stream Mix exclusions.
     for def in &defs.channels {
         if let Err(e) = state
             .backend
             .set_channel_output(&def.name, outputs.get(&def.name))
         {
             eprintln!("sink: output routing for {} failed: {e}", def.name);
+        }
+        if !def.stream_mix {
+            if let Err(e) = state.backend.set_channel_stream_mix(&def.name, false) {
+                eprintln!("sink: stream-mix exclusion for {} failed: {e}", def.name);
+            }
         }
     }
 

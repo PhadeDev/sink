@@ -42,9 +42,36 @@ pub fn add_channel(
         icon: def.icon,
         volume_percent: 100,
         muted: false,
+        stream_mix: def.stream_mix,
     });
     crate::commands::profiles::autosave_active(&mixer);
     Ok(())
+}
+
+/// Include or exclude a channel from the Stream Mix (what OBS records).
+#[tauri::command]
+pub fn set_channel_stream_mix(
+    state: State<'_, AppState>,
+    sink_name: String,
+    enabled: bool,
+) -> Result<(), String> {
+    state
+        .backend
+        .set_channel_stream_mix(&sink_name, enabled)
+        .map_err(|e| e.to_string())?;
+    let defs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer
+            .channel_defs
+            .set_stream_mix(&sink_name, enabled)
+            .map_err(|e| e.to_string())?;
+        if let Some(channel) = mixer.channel_mut(&sink_name) {
+            channel.stream_mix = enabled;
+        }
+        crate::commands::profiles::autosave_active(&mixer);
+        mixer.channel_defs.clone()
+    };
+    defs.save().map_err(|e| e.to_string())
 }
 
 /// Change a channel's strip icon.

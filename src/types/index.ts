@@ -29,6 +29,8 @@ export interface VirtualSink {
   icon: string | null;
   volume_percent: number;
   muted: boolean;
+  /** Whether this channel feeds the Stream Mix source (OBS recording). */
+  stream_mix: boolean;
 }
 
 export interface OutputDevice {

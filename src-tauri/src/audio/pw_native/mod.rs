@@ -141,6 +141,11 @@ impl AudioBackend for PipeWireBackend {
         })
     }
 
+    fn set_channel_stream_mix(&self, sink_name: &str, enabled: bool) -> Result<(), SinkError> {
+        let sink_name = sink_name.to_string();
+        self.request(|reply| Cmd::SetStreamMix { sink_name, enabled, reply })
+    }
+
     fn list_input_devices(&self) -> Result<Vec<crate::audio::types::OutputDevice>, SinkError> {
         self.request(|reply| Cmd::ListInputs { reply })
     }

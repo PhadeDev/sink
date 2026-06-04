@@ -47,6 +47,7 @@ impl MixerState {
                 icon: def.icon.clone(),
                 volume_percent: 100,
                 muted: false,
+                stream_mix: def.stream_mix,
             })
             .collect();
         self.initialized = true;

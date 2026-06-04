@@ -20,6 +20,13 @@ pub struct ChannelDef {
     /// Material Symbol name for the strip icon (None = legacy default).
     #[serde(default)]
     pub icon: Option<String>,
+    /// Whether the channel feeds the Stream Mix source (default: yes).
+    #[serde(default = "default_true")]
+    pub stream_mix: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// The user's channel set, stored as JSON at
@@ -35,6 +42,7 @@ impl Default for Channels {
             name: name.to_string(),
             label: label.to_string(),
             icon: Some(icon.to_string()),
+            stream_mix: true,
         };
         Self {
             channels: vec![
@@ -99,6 +107,16 @@ impl Channels {
         self.channels.iter().find(|c| c.name == name)
     }
 
+    pub fn set_stream_mix(&mut self, name: &str, enabled: bool) -> Result<(), SinkError> {
+        let def = self
+            .channels
+            .iter_mut()
+            .find(|c| c.name == name)
+            .ok_or_else(|| SinkError::UnknownSink(name.to_string()))?;
+        def.stream_mix = enabled;
+        Ok(())
+    }
+
     pub fn set_icon(&mut self, name: &str, icon: Option<String>) -> Result<(), SinkError> {
         let def = self
             .channels
@@ -132,6 +150,7 @@ impl Channels {
             name,
             label: label.to_string(),
             icon,
+            stream_mix: true,
         };
         self.channels.push(def.clone());
         Ok(def)

@@ -13,6 +13,9 @@ interface OutputSelectProps {
   /** Compact footer style (channel strip) vs pill style (mixer top bar). */
   compact?: boolean;
   popoverStyle?: CSSProperties;
+  /** When provided, the menu shows an "Include in Stream Mix" toggle. */
+  streamMix?: boolean;
+  onStreamMixChange?: (enabled: boolean) => void;
 }
 
 function deviceIcon(description: string): string {
@@ -23,7 +26,15 @@ function deviceIcon(description: string): string {
   return "speaker";
 }
 
-export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: OutputSelectProps) {
+export function OutputSelect({
+  value,
+  mixed,
+  onChange,
+  compact,
+  popoverStyle,
+  streamMix,
+  onStreamMixChange,
+}: OutputSelectProps) {
   const [open, setOpen] = useState(false);
   const outputDevices = useMixerStore((s) => s.outputDevices);
 
@@ -63,6 +74,22 @@ export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: 
           {!mixed && d.name === value && <Ms name="check" style={{ marginLeft: "auto" }} />}
         </div>
       ))}
+      {onStreamMixChange && (
+        <>
+          <div className="menu-sep" />
+          <div
+            className="menu-item"
+            title="Whether OBS hears this channel when recording the Stream Mix source"
+            onClick={() => onStreamMixChange(!streamMix)}
+          >
+            <Ms
+              name={streamMix ? "check_box" : "check_box_outline_blank"}
+              style={streamMix ? { color: "var(--accent-hover)" } : undefined}
+            />
+            <span>Include in Stream Mix</span>
+          </div>
+        </>
+      )}
     </>
   );
 

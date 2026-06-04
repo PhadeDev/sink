@@ -55,6 +55,7 @@ pub fn run() {
             commands::channels::rename_channel,
             commands::channels::remove_channel,
             commands::channels::set_channel_icon,
+            commands::channels::set_channel_stream_mix,
             commands::routing::route_app_to_channel,
             commands::routing::set_channel_volume,
             commands::routing::toggle_channel_mute,

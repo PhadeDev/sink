@@ -34,6 +34,10 @@ pub trait AudioBackend: Send + Sync {
         output_name: Option<&str>,
     ) -> Result<(), SinkError>;
 
+    /// Include or exclude a channel from the Stream Mix source (what OBS
+    /// records). Native-only; the pactl fallback has no Stream Mix.
+    fn set_channel_stream_mix(&self, sink_name: &str, enabled: bool) -> Result<(), SinkError>;
+
     /// Hardware capture devices (microphones) for the Phase 3 mic chain.
     fn list_input_devices(&self) -> Result<Vec<OutputDevice>, SinkError>;
 

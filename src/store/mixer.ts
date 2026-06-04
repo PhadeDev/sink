@@ -67,6 +67,8 @@ interface MixerStore {
   renameChannel: (sinkName: string, label: string) => Promise<void>;
   removeChannel: (sinkName: string) => Promise<void>;
   setChannelIcon: (sinkName: string, icon: string) => Promise<void>;
+  /** Include/exclude a channel from the Stream Mix (OBS recording). */
+  setChannelStreamMix: (sinkName: string, enabled: boolean) => Promise<void>;
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
@@ -389,6 +391,20 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
       await Promise.all([get().fetchChannels(), get().fetchOutputs()]);
     } catch (e) {
       set({ error: String(e) });
+    }
+  },
+
+  setChannelStreamMix: async (sinkName, enabled) => {
+    set((s) => ({
+      channels: s.channels.map((c) =>
+        c.name === sinkName ? { ...c, stream_mix: enabled } : c,
+      ),
+    }));
+    try {
+      await invoke("set_channel_stream_mix", { sinkName, enabled });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchChannels();
     }
   },
 
