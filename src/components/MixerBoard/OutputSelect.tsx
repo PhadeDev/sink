@@ -76,7 +76,9 @@ export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: 
         <Popover
           open={open}
           onClose={() => setOpen(false)}
-          style={{ bottom: 34, left: "50%", transform: "translateX(-50%)", ...popoverStyle }}
+          side="top"
+          align="center"
+          style={popoverStyle}
         >
           {items}
         </Popover>
@@ -91,7 +93,7 @@ export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: 
         <span>{label}</span>
         <Ms name="expand_more" className="chev" />
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} style={{ top: 40, left: 0, ...popoverStyle }}>
+      <Popover open={open} onClose={() => setOpen(false)} side="bottom" align="start" style={popoverStyle}>
         {items}
       </Popover>
     </div>

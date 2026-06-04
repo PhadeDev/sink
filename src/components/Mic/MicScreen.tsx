@@ -131,7 +131,8 @@ export function MicScreen() {
                   <Popover
                     open={deviceOpen}
                     onClose={() => setDeviceOpen(false)}
-                    style={{ top: 38, right: 0 }}
+                    side="bottom"
+                    align="end"
                   >
                     <div
                       className={"menu-item" + (micConfig.input_device === null ? " sel" : "")}

@@ -45,7 +45,7 @@ export function ProfileMenu() {
         <span>{activeProfile ?? "Profiles"}</span>
         <Ms name="expand_more" />
       </button>
-      <Popover open={open} onClose={close} style={{ top: 38, right: 0, minWidth: 300 }}>
+      <Popover open={open} onClose={close} side="bottom" align="end" style={{ minWidth: 300 }}>
         <div className="menu-caption">
           <span>Profiles</span>
           <span className="menu-caption-hint">changes save automatically</span>

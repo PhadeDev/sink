@@ -78,7 +78,9 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
           <Popover
             open={pickingIcon}
             onClose={() => setPickingIcon(false)}
-            style={{ top: 44, left: "50%", transform: "translateX(-50%)", minWidth: 196 }}
+            side="bottom"
+            align="center"
+            style={{ minWidth: 196 }}
           >
             <div className="icon-grid">
               {ICON_CHOICES.map((icon) => (

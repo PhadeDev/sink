@@ -26,7 +26,7 @@ export function ChannelSelect({ value, onChange }: ChannelSelectProps) {
         </span>
         <Ms name="expand_more" />
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} style={{ top: 38, right: 0 }}>
+      <Popover open={open} onClose={() => setOpen(false)} side="bottom" align="end">
         {channels.map((c) => (
           <div
             key={c.name}
