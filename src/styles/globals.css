@@ -340,21 +340,6 @@ body,
   border: 3px solid var(--bg-main);
 }
 
-/* ---------- Mixer top bar ---------- */
-.mixer-top {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-  padding: var(--sp-4) var(--sp-7);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-sidebar);
-}
-.mixer-out {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  font-size: var(--fs-meta);
-}
 .out-pill {
   display: flex;
   align-items: center;
@@ -414,10 +399,6 @@ body,
 .group-head .gh-count {
   font-size: var(--fs-caption);
   color: var(--fg-muted);
-}
-.is-mix .group-head .gh-icon,
-.is-mix .group-head .gh-label {
-  color: var(--accent-hover);
 }
 .gh-add-wrap {
   margin-left: auto;
@@ -740,6 +721,10 @@ body,
   gap: 5px;
   font-size: var(--fs-caption);
   color: var(--fg-muted);
+  /* uniform footer height so blank (mic/mix) and output-select (channel)
+   * footers keep every strip's divider and controls aligned */
+  height: 31px;
+  box-sizing: border-box;
 }
 .strip-route .ms {
   font-size: 13px;
@@ -771,7 +756,10 @@ body,
   letter-spacing: 0.4px;
   color: var(--fg-muted);
   text-transform: uppercase;
-  margin: 0 0 var(--sp-3);
+  margin: var(--sp-6) 0 var(--sp-3);
+}
+.section-label:first-child {
+  margin-top: 0;
 }
 .card {
   background: var(--bg-surface);
@@ -1018,7 +1006,16 @@ body,
   gap: var(--sp-4);
 }
 .mic-device-select {
-  max-width: 100%;
+  max-width: 420px;
+}
+/* settings: default-device picker shows the current device */
+.device-select {
+  max-width: 340px;
+}
+.device-select-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mic-device-name {
   overflow: hidden;
@@ -1385,18 +1382,25 @@ body,
   font-size: var(--fs-meta);
 }
 
-/* DSP tuning sliders (mic processing card) */
+/* DSP tuning sliders (mic processing card): inset under their stage's
+ * toggle row with a guide line, so parameters read as controls rather
+ * than blending into the stage descriptions. */
 .dsp-row {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 2px var(--sp-4) var(--sp-2) 64px;
+  margin-left: 64px;
+  padding: 2px var(--sp-4) var(--sp-2) var(--sp-4);
+  border-left: 2px solid var(--border);
 }
 .dsp-label {
   width: 76px;
   flex: 0 0 76px;
   font-size: var(--fs-caption);
-  color: var(--fg-muted);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--fg-secondary);
 }
 .dsp-row .hs-track {
   flex: 1;
@@ -1427,4 +1431,11 @@ body,
 }
 .tag.tag-off .ms {
   color: var(--fg-muted);
+}
+
+/* mic screen body while the chain is switched off: visible but inert */
+.mic-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
 }

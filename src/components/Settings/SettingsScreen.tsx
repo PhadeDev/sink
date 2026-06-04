@@ -24,12 +24,15 @@ const LABEL_STYLES: { value: LabelStyle; label: string; example: string }[] = [
 function DeviceRow({
   icon,
   title,
+  sub,
   devices,
   current,
   onPick,
 }: {
   icon: string;
   title: string;
+  /** What this default is used for. */
+  sub: string;
   devices: OutputDevice[];
   current: string | null;
   onPick: (name: string) => void;
@@ -44,11 +47,11 @@ function DeviceRow({
       </div>
       <div className="rmain">
         <div className="rtitle">{title}</div>
-        <div className="rsub">{currentDesc}</div>
+        <div className="rsub">{sub}</div>
       </div>
       <div style={{ position: "relative" }}>
-        <button className="select" onClick={() => setOpen((o) => !o)}>
-          <span>Change</span>
+        <button className="select device-select" onClick={() => setOpen((o) => !o)}>
+          <span className="device-select-name">{currentDesc}</span>
           <Ms name="expand_more" />
         </button>
         <Popover open={open} onClose={() => setOpen(false)} side="bottom" align="end">
@@ -137,6 +140,7 @@ export function SettingsScreen() {
           <DeviceRow
             icon="speaker"
             title="Default output"
+            sub="Where channels set to “System default” play"
             devices={outputDevices}
             current={defaults.output}
             onPick={(name) => void pickDefault("output", name)}
@@ -144,21 +148,22 @@ export function SettingsScreen() {
           <DeviceRow
             icon="mic"
             title="Default input"
+            sub="The microphone the Sink mic chain captures"
             devices={inputDevices}
             current={defaults.input}
             onPick={(name) => void pickDefault("input", name)}
           />
+        </div>
+
+        <div className="section-label">Preferences</div>
+        <div className="card" style={{ padding: "var(--sp-2)" }}>
           <div className="row">
             <div className="ricon">
               <Ms name="label" />
             </div>
             <div className="rmain">
               <div className="rtitle">Device naming</div>
-              <div className="rsub">
-                {labelStyle === "plain"
-                  ? "Devices appear with their channel name, e.g. “Game”"
-                  : `Marks Sink's devices in other apps, e.g. “${LABEL_STYLES.find((s) => s.value === labelStyle)?.example}”`}
-              </div>
+              <div className="rsub">Naming scheme for Sink-managed devices</div>
             </div>
             <div style={{ position: "relative" }}>
               <button className="select" onClick={() => setLabelStyleOpen((o) => !o)}>
@@ -181,10 +186,6 @@ export function SettingsScreen() {
                 ))}
               </Popover>
             </div>
-          </div>
-          <div className="empty-hint" style={{ padding: "var(--sp-2) var(--sp-4)", textAlign: "left" }}>
-            Channels set to "System default" and the mic chain follow the defaults above. Naming
-            changes apply to devices created after a restart (renames apply immediately).
           </div>
         </div>
 

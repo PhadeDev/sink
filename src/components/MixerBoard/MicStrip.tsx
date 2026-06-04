@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMixerStore } from "../../store/mixer";
 import { MAX_MIC_GAIN, MIC_LEVEL_KEY } from "../../types";
 import { perceptual } from "../../lib/audio";
@@ -13,8 +14,17 @@ export function MicStrip() {
   const level = useMixerStore((s) => s.levels[MIC_LEVEL_KEY]);
   const monitoring = useMixerStore((s) => s.monitors[MIC_LEVEL_KEY] ?? false);
   const toggleMonitor = useMixerStore((s) => s.toggleMonitor);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
 
   if (!micConfig?.enabled) return null;
+
+  const commitRename = () => {
+    setEditing(false);
+    const label = draft.trim();
+    if (label && label !== micConfig.output_label)
+      void setMicConfig({ output_label: label });
+  };
 
   const target = micConfig.muted ? 0 : perceptual(level?.[0] ?? 0);
 
@@ -24,7 +34,31 @@ export function MicStrip() {
         <div className="strip-icon strip-icon-mic">
           <Ms name="mic" />
         </div>
-        <div className="strip-name">{micConfig.output_label}</div>
+        {editing ? (
+          <input
+            className="menu-input strip-name-input"
+            value={draft}
+            autoFocus
+            maxLength={32}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+        ) : (
+          <div
+            className="strip-name strip-name-editable"
+            title="Double-click to rename — other apps see this name"
+            onDoubleClick={() => {
+              setDraft(micConfig.output_label);
+              setEditing(true);
+            }}
+          >
+            {micConfig.output_label}
+          </div>
+        )}
         <div className="strip-meta">capture</div>
       </div>
 
@@ -62,10 +96,7 @@ export function MicStrip() {
         </button>
       </div>
 
-      <div className="strip-route">
-        <Ms name="graphic_eq" />
-        <span>Mic stream</span>
-      </div>
+      <div className="strip-route" />
       </div>
   );
 }

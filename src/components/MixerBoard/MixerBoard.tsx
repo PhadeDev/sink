@@ -5,7 +5,6 @@ import { Ms, ICON_CHOICES } from "../Icons";
 import { Modal } from "../Modal";
 import { ChannelStrip } from "./ChannelStrip";
 import { MicStrip } from "./MicStrip";
-import { OutputSelect } from "./OutputSelect";
 import { BusStrip } from "./StreamMixStrip";
 
 // UI-side gates only; the backend enforces the real limits.
@@ -57,8 +56,6 @@ export function MixerBoard() {
   const channels = useMixerStore((s) => s.channels);
   const buses = useMixerStore((s) => s.buses);
   const appStreams = useMixerStore((s) => s.appStreams);
-  const channelOutputs = useMixerStore((s) => s.channelOutputs);
-  const setAllOutputs = useMixerStore((s) => s.setAllOutputs);
   const addChannel = useMixerStore((s) => s.addChannel);
   const addBus = useMixerStore((s) => s.addBus);
   const micConfig = useMixerStore((s) => s.micConfig);
@@ -87,10 +84,6 @@ export function MixerBoard() {
     }
   }
 
-  // The top pill mirrors Sonar's "same device on all output channels".
-  const selections = channels.map((c) => channelOutputs[c.name] ?? null);
-  const allSame = selections.every((s) => s === selections[0]);
-
   const closeChannelModal = () => {
     setAddingChannel(false);
     setChannelLabel("");
@@ -111,18 +104,6 @@ export function MixerBoard() {
 
   return (
     <div className="content">
-      <div className="mixer-top">
-        <div className="mixer-out">
-          <span style={{ color: "var(--fg-muted)", fontSize: "var(--fs-caption)" }}>
-            OUTPUT
-          </span>
-          <OutputSelect
-            value={allSame ? (selections[0] ?? null) : null}
-            mixed={!allSame}
-            onChange={(o) => void setAllOutputs(o)}
-          />
-        </div>
-      </div>
       <div className="screen-scroll" style={{ padding: 0 }}>
         <div className="mix-scroll">
           {micConfig?.enabled && (
@@ -131,7 +112,7 @@ export function MixerBoard() {
                 kind="capture"
                 icon="mic"
                 label="Capture"
-                count="1 in"
+                count="1"
                 hint="Inputs: your processed microphone. Apps capture the result as Sink Mic."
               >
                 <MicStrip />

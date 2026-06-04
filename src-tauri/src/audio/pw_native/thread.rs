@@ -570,6 +570,12 @@ fn desired_pairs(s: &State, channel_id: u32, target_id: u32) -> Vec<(u32, u32)> 
     if monitors.is_empty() || inputs.is_empty() {
         return Vec::new();
     }
+    // Mono source into a multi-channel target: fan out to every input
+    // (e.g. listening to the mic — both ears, not just FL).
+    if monitors.len() == 1 && inputs.len() > 1 {
+        let m = monitors[0];
+        return inputs.iter().map(|p| (m.id, p.id)).collect();
+    }
     monitors
         .iter()
         .enumerate()

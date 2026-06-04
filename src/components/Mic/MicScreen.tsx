@@ -64,16 +64,15 @@ export function MicScreen() {
     <div className="content">
       <div className="screen-head">
         <h1>Microphone</h1>
-        <div className="sub">
-          Other apps see your processed mic as "{micConfig.output_label}"
-        </div>
         <div className="screen-head-actions">
-          {micConfig.enabled && (
-            <span className={"tag" + (micConfig.muted ? " tag-off" : " live")}>
-              <Ms name="fiber_manual_record" style={{ fontSize: 11 }} />
-              {micConfig.muted ? "Muted" : "Live"}
-            </span>
-          )}
+          <span
+            className={
+              "tag" + (!micConfig.enabled || micConfig.muted ? " tag-off" : " live")
+            }
+          >
+            <Ms name="fiber_manual_record" style={{ fontSize: 11 }} />
+            {!micConfig.enabled ? "Off" : micConfig.muted ? "Muted" : "Live"}
+          </span>
           <Toggle
             on={micConfig.enabled}
             onClick={() => void setMicConfig({ enabled: !micConfig.enabled })}
@@ -81,14 +80,7 @@ export function MicScreen() {
         </div>
       </div>
       <div className="screen-scroll" style={{ maxWidth: 680 }}>
-        {!micConfig.enabled ? (
-          <div className="empty-hint">
-            Mic processing is off.
-            <br />
-            Switch it on (top right) to create the "Sink Mic" virtual microphone.
-          </div>
-        ) : (
-          <>
+        <div className={micConfig.enabled ? undefined : "mic-disabled"}>
             <div className="section-label">Input</div>
             <div className="card mic-card">
               <div className="mic-gain-row">
@@ -250,8 +242,7 @@ export function MicScreen() {
                 />
               )}
             </div>
-          </>
-        )}
+        </div>
       </div>
     </div>
   );

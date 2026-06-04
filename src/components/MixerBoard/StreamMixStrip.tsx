@@ -159,10 +159,7 @@ export function BusStrip({ bus }: { bus: BusDef }) {
       <div
         className="strip-route"
         title={`Select "${bus.label}" as an audio source in OBS or any recorder`}
-      >
-        <Ms name="radio_button_checked" />
-        <span className="strip-route-name">capturable</span>
-      </div>
+      />
 
       <Modal
         open={confirmingDelete}
