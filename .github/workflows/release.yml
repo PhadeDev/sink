@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    # 24.04: PipeWire 1.x headers (the native backend needs >= 0.3.49)
+    # and webkit2gtk-4.1 for Tauri v2.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libpipewire-0.3-dev \
+            clang
+
+      - run: npm ci
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Sink ${{ github.ref_name }}"
+          releaseBody: |
+            Linux builds:
+            - **AppImage** — portable, run anywhere (`chmod +x` and go)
+            - **.deb** — Debian / Ubuntu and derivatives
+            - **.rpm** — Fedora / openSUSE and derivatives
+
+            Requires PipeWire with `pipewire-pulse` and WirePlumber 0.5+.
+          releaseDraft: false
+          prerelease: false
