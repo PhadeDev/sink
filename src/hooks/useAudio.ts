@@ -37,6 +37,17 @@ export function useAudio() {
     };
   }, [setLevels]);
 
+  // Profile switched from the tray menu — sync the whole UI.
+  const onProfileChanged = useMixerStore((s) => s.onProfileChanged);
+  useEffect(() => {
+    const unlisten = listen<string>("profile-changed", (event) => {
+      void onProfileChanged(event.payload);
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [onProfileChanged]);
+
   // Hardware profile auto-switch: when a device with a bound profile
   // appears, load that profile (Sonar-style).
   const seenDevices = useRef<Set<string> | null>(null);

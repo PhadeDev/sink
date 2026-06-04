@@ -58,7 +58,11 @@ pub fn set_profile_trigger(name: String, device: String) -> Result<(), String> {
 /// apply volumes/mutes/outputs, replace the assignment set, and clear the
 /// auto-route ledger so the new routing is enforced within the next poll.
 #[tauri::command]
-pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), String> {
+pub fn load_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
     let profile = profiles::load(&name).map_err(|e| e.to_string())?;
     if profile.channels.is_empty() {
         return Err(format!("profile {name} has no channels"));
@@ -148,14 +152,16 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
     outputs.save().map_err(|e| e.to_string())?;
     wireplumber::write(&assignments).map_err(|e| e.to_string())?;
     // The loaded profile becomes the live-bound (autosaving) one.
-    set_active(&state, Some(name))
+    set_active(&state, Some(name))?;
+    crate::refresh_tray(&app);
+    Ok(())
 }
 
 /// Create a profile with a clean slate: the classic four channels at
 /// 100%/unmuted, no assignments, all outputs following the default. It is
 /// saved but not applied — load it to start fresh.
 #[tauri::command]
-pub fn create_blank_profile(name: String) -> Result<(), String> {
+pub fn create_blank_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     let name = profiles::sanitize_name(&name).map_err(|e| e.to_string())?;
     if profiles::load(&name).is_ok() {
         return Err(format!("profile \"{name}\" already exists"));
@@ -179,11 +185,17 @@ pub fn create_blank_profile(name: String) -> Result<(), String> {
         outputs: Default::default(),
         trigger_device: None,
     };
-    profiles::save(&profile).map_err(|e| e.to_string())
+    profiles::save(&profile).map_err(|e| e.to_string())?;
+    crate::refresh_tray(&app);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn delete_profile(state: State<'_, AppState>, name: String) -> Result<(), String> {
+pub fn delete_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
     profiles::delete(&name).map_err(|e| e.to_string())?;
     let is_active = {
         let mixer = state.lock_mixer()?;
@@ -192,5 +204,6 @@ pub fn delete_profile(state: State<'_, AppState>, name: String) -> Result<(), St
     if is_active {
         set_active(&state, None)?;
     }
+    crate::refresh_tray(&app);
     Ok(())
 }

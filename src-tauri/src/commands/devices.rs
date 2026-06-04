@@ -106,7 +106,10 @@ pub fn get_output_devices(state: State<'_, AppState>) -> Result<Vec<OutputDevice
 /// Create the user's virtual sinks and reset them to 100%, unmuted.
 /// Idempotent: safe to call again if the sinks already exist.
 #[tauri::command]
-pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
+pub fn init_virtual_devices(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let defs = {
         let mixer = state.lock_mixer()?;
         mixer.channel_defs.clone()
@@ -178,6 +181,8 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
             Err(e) => eprintln!("sink: creating Default profile failed: {e}"),
         }
     }
+    // Profiles/active state may have changed since the tray was built.
+    crate::refresh_tray(&app);
     Ok(())
 }
 

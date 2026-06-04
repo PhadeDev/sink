@@ -119,8 +119,40 @@ fn spawn_level_emitter(handle: tauri::AppHandle, levels: Arc<LevelStore>) {
     });
 }
 
-fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+/// Build the tray menu, including the live Profiles submenu (check on the
+/// active profile). Rebuilt via `refresh_tray` whenever profiles change.
+fn build_tray_menu(
+    app: &tauri::AppHandle,
+) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+    use tauri::menu::{IsMenuItem, Submenu};
+
     let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+
+    let active = app
+        .state::<AppState>()
+        .lock_mixer()
+        .ok()
+        .and_then(|m| m.active_profile.clone());
+    let profile_items: Vec<CheckMenuItem<tauri::Wry>> = persistence::profiles::list()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|info| {
+            CheckMenuItem::with_id(
+                app,
+                format!("profile:{}", info.name),
+                &info.name,
+                true,
+                active.as_deref() == Some(info.name.as_str()),
+                None::<&str>,
+            )
+        })
+        .collect::<Result<_, _>>()?;
+    let profile_refs: Vec<&dyn IsMenuItem<tauri::Wry>> = profile_items
+        .iter()
+        .map(|i| i as &dyn IsMenuItem<tauri::Wry>)
+        .collect();
+    let profiles_menu = Submenu::with_items(app, "Profiles", true, &profile_refs)?;
+
     let autostart = CheckMenuItem::with_id(
         app,
         "autostart",
@@ -130,8 +162,29 @@ fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         None::<&str>,
     )?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &autostart, &quit])?;
-    let autostart_item = autostart.clone();
+    Ok(Menu::with_items(
+        app,
+        &[&show, &profiles_menu, &autostart, &quit],
+    )?)
+}
+
+/// Rebuild the tray menu (called after anything that changes profiles or
+/// their active state).
+pub(crate) fn refresh_tray(app: &tauri::AppHandle) {
+    if let Some(tray) = app.tray_by_id("sink-tray") {
+        match build_tray_menu(app) {
+            Ok(menu) => {
+                if let Err(e) = tray.set_menu(Some(menu)) {
+                    eprintln!("sink: tray menu refresh failed: {e}");
+                }
+            }
+            Err(e) => eprintln!("sink: tray menu rebuild failed: {e}"),
+        }
+    }
+}
+
+fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let menu = build_tray_menu(app.handle())?;
 
     // Dedicated 22px tray glyph from the icon pack (white for the common
     // dark panel; the full-color icon stays on the window/dock).
@@ -142,36 +195,51 @@ fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .tooltip("sink")
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .on_menu_event(move |app, event| match event.id.as_ref() {
-            "show" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
+        .on_menu_event(move |app, event| {
+            let id = event.id.as_ref();
+            if let Some(name) = id.strip_prefix("profile:") {
+                // Switch profiles straight from the tray; tell the UI.
+                match commands::profiles::load_profile(
+                    app.clone(),
+                    app.state(),
+                    name.to_string(),
+                ) {
+                    Ok(()) => {
+                        let _ = app.emit("profile-changed", name);
+                    }
+                    Err(e) => eprintln!("sink: tray profile switch failed: {e}"),
                 }
+                return;
             }
-            "autostart" => {
-                // Toggle the systemd user unit; reflect the real state back
-                // into the menu (the click already flipped the checkbox).
-                let result = if persistence::autostart::is_enabled() {
-                    persistence::autostart::disable()
-                } else {
-                    persistence::autostart::enable()
-                };
-                if let Err(e) = result {
-                    eprintln!("sink: autostart toggle failed: {e}");
+            match id {
+                "show" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
                 }
-                let _ = autostart_item.set_checked(persistence::autostart::is_enabled());
-            }
-            "quit" => {
-                // Clean up our virtual sinks before exiting. Best-effort:
-                // log failures but never block quitting.
-                let state = app.state::<AppState>();
-                for err in state.teardown_virtual_sinks() {
-                    eprintln!("sink: teardown: {err}");
+                "autostart" => {
+                    let result = if persistence::autostart::is_enabled() {
+                        persistence::autostart::disable()
+                    } else {
+                        persistence::autostart::enable()
+                    };
+                    if let Err(e) = result {
+                        eprintln!("sink: autostart toggle failed: {e}");
+                    }
+                    refresh_tray(app);
                 }
-                app.exit(0);
+                "quit" => {
+                    // Clean up our virtual sinks before exiting. Best-effort:
+                    // log failures but never block quitting.
+                    let state = app.state::<AppState>();
+                    for err in state.teardown_virtual_sinks() {
+                        eprintln!("sink: teardown: {err}");
+                    }
+                    app.exit(0);
+                }
+                _ => {}
             }
-            _ => {}
         })
         .build(app)?;
 

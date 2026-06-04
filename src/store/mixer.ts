@@ -52,6 +52,8 @@ interface MixerStore {
   setProfileTrigger: (name: string, device: string | null) => Promise<void>;
   /** Create a clean-slate profile (saved, not applied). */
   createBlankProfile: (name: string) => Promise<void>;
+  /** A profile was switched outside the UI (tray) — sync everything. */
+  onProfileChanged: (name: string) => Promise<void>;
   /** App history (live + gone + ignored). */
   seenApps: SeenApp[];
   fetchSeenApps: () => Promise<void>;
@@ -298,6 +300,17 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     } catch (e) {
       set({ error: String(e) });
     }
+  },
+
+  onProfileChanged: async (name) => {
+    set({ activeProfile: name });
+    await Promise.all([
+      get().fetchChannels(),
+      get().fetchAppStreams(),
+      get().fetchOutputs(),
+      get().fetchSeenApps(),
+      get().fetchProfiles(),
+    ]);
   },
 
   createBlankProfile: async (name) => {
