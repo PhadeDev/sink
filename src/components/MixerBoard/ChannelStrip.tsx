@@ -35,6 +35,7 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const commitRename = () => {
     setEditing(false);
@@ -49,16 +50,39 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const amplitude = Math.max(level?.[0] ?? 0, level?.[1] ?? 0);
 
   return (
-    <div className={"strip" + (channel.muted ? " muted" : "")}>
-      {channelCount > 1 && (
+    <div
+      className={"strip" + (channel.muted ? " muted" : "")}
+      onMouseLeave={() => setConfirmingDelete(false)}
+    >
+      {channelCount > 1 && !confirmingDelete && (
         <button
           className="strip-delete"
           aria-label={`Delete channel ${channel.label}`}
-          title="Delete channel (apps return to the default output)"
-          onClick={() => void removeChannel(channel.name)}
+          title="Delete channel"
+          onClick={() => setConfirmingDelete(true)}
         >
           <Ms name="close" style={{ fontSize: 13 }} />
         </button>
+      )}
+      {confirmingDelete && (
+        <div className="strip-confirm">
+          <span>Delete "{channel.label}"?</span>
+          <small>Apps return to the default output</small>
+          <div className="strip-confirm-btns">
+            <button
+              className="confirm-yes"
+              onClick={() => {
+                setConfirmingDelete(false);
+                void removeChannel(channel.name);
+              }}
+            >
+              Delete
+            </button>
+            <button className="confirm-no" onClick={() => setConfirmingDelete(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
       <div className="strip-head">
         <div className="strip-icon">

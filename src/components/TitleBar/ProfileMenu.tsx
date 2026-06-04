@@ -20,6 +20,7 @@ export function ProfileMenu() {
   const loadProfile = useMixerStore((s) => s.loadProfile);
   const deleteProfile = useMixerStore((s) => s.deleteProfile);
   const setProfileTrigger = useMixerStore((s) => s.setProfileTrigger);
+  const createBlankProfile = useMixerStore((s) => s.createBlankProfile);
 
   const save = () => {
     const name = newName.trim();
@@ -27,6 +28,13 @@ export function ProfileMenu() {
     void saveProfile(name);
     setNewName("");
     setOpen(false);
+  };
+
+  const createBlank = () => {
+    const name = newName.trim();
+    if (!name) return;
+    void createBlankProfile(name);
+    setNewName("");
   };
 
   const close = () => {
@@ -132,9 +140,23 @@ export function ProfileMenu() {
               if (e.key === "Enter") save();
             }}
           />
-          <button className="select" onClick={save} disabled={!newName.trim()}>
+          <button
+            className="select"
+            onClick={save}
+            disabled={!newName.trim()}
+            title="Save the current mixer state under this name"
+          >
             <Ms name="save" />
             <span>Save</span>
+          </button>
+          <button
+            className="select"
+            onClick={createBlank}
+            disabled={!newName.trim()}
+            title="Create a clean-slate profile (default channels, no routing)"
+          >
+            <Ms name="note_add" />
+            <span>Blank</span>
           </button>
         </div>
       </Popover>

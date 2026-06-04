@@ -43,6 +43,8 @@ interface MixerStore {
   profiles: ProfileInfo[];
   /** Bind/clear an output device that auto-loads a profile (Phase 5). */
   setProfileTrigger: (name: string, device: string | null) => Promise<void>;
+  /** Create a clean-slate profile (saved, not applied). */
+  createBlankProfile: (name: string) => Promise<void>;
   /** Channel management: labels are free-form, sink names are stable. */
   addChannel: (label: string) => Promise<void>;
   renameChannel: (sinkName: string, label: string) => Promise<void>;
@@ -95,6 +97,10 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         get().fetchOutputs(),
         get().fetchMic(),
       ]);
+      // First run auto-creates "Default" backend-side; reflect it as active.
+      if (!get().activeProfile && get().profiles.some((p) => p.name === "Default")) {
+        set({ activeProfile: "Default" });
+      }
     } catch (e) {
       set({ error: String(e) });
     }
@@ -247,6 +253,15 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   setProfileTrigger: async (name, device) => {
     try {
       await invoke("set_profile_trigger", { name, device: device ?? "" });
+      await get().fetchProfiles();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  createBlankProfile: async (name) => {
+    try {
+      await invoke("create_blank_profile", { name });
       await get().fetchProfiles();
     } catch (e) {
       set({ error: String(e) });

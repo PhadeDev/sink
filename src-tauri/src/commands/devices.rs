@@ -117,6 +117,22 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
             eprintln!("sink: mic chain init failed: {e}");
         }
     }
+
+    // First run: capture the current layout as the "Default" profile so
+    // there's always a known-good state to come back to.
+    if matches!(crate::persistence::profiles::list(), Ok(list) if list.is_empty()) {
+        let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let default = crate::persistence::profiles::Profile {
+            name: "Default".to_string(),
+            channels: mixer.channels.clone(),
+            assignments: mixer.assignments.clone(),
+            outputs: mixer.outputs.clone(),
+            trigger_device: None,
+        };
+        if let Err(e) = crate::persistence::profiles::save(&default) {
+            eprintln!("sink: creating Default profile failed: {e}");
+        }
+    }
     Ok(())
 }
 

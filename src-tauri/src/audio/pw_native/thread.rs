@@ -378,6 +378,14 @@ fn on_node(
             let mut s = state_i.borrow_mut();
             if let Some(entry) = s.nodes.get_mut(&node_id) {
                 entry.active = running;
+                // Registry globals only carry an abbreviated prop set; the
+                // info event has the full dict (e.g. application.process.
+                // binary, needed to name Discord's "WEBRTC VoiceEngine").
+                if let Some(props) = info.props() {
+                    for (k, v) in props.iter() {
+                        entry.props.insert(k.to_string(), v.to_string());
+                    }
+                }
             }
         })
         .param(move |_seq, id, _index, _next, param| {
