@@ -1003,6 +1003,42 @@ body,
   padding: var(--sp-7);
 }
 
+/* inactive / ignored app history */
+.card-inactive {
+  opacity: 0.85;
+}
+.row-inactive .ricon {
+  opacity: 0.6;
+}
+.row-inactive .rname {
+  color: var(--fg-secondary);
+}
+.row-action {
+  opacity: 0;
+}
+.row:hover .row-action {
+  opacity: 1;
+}
+.ignored-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-5);
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  padding: var(--sp-1) 0;
+}
+.ignored-toggle:hover {
+  color: var(--fg-secondary);
+}
+.ignored-toggle .ms {
+  font-size: 16px;
+}
+
 /* popover menu */
 .menu {
   position: absolute;

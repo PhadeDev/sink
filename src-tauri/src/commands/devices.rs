@@ -23,6 +23,29 @@ pub fn get_app_streams(state: State<'_, AppState>) -> Result<Vec<AppStream>, Str
     let mut streams = state.backend.list_app_streams().map_err(|e| e.to_string())?;
 
     let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+
+    // Record sightings in the app history, then hide ignored identities
+    // (they are also exempt from auto-routing below by virtue of removal).
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut structural_change = false;
+    for stream in &streams {
+        structural_change |= mixer.seen.upsert(
+            &stream.match_prop,
+            &stream.match_value,
+            &stream.app_name,
+            stream.icon_name.as_deref(),
+            now,
+        );
+    }
+    if structural_change {
+        if let Err(e) = mixer.seen.save() {
+            eprintln!("sink: saving app history failed: {e}");
+        }
+    }
+    streams.retain(|s| !mixer.seen.is_ignored(&s.match_prop, &s.match_value));
     // Only enforce once the virtual sinks exist; otherwise streams would be
     // marked as handled while their target sink can't be moved to yet.
     if mixer.initialized {

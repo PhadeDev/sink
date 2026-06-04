@@ -14,6 +14,7 @@ export function AppRow({ stream }: AppRowProps) {
   const routeApp = useMixerStore((s) => s.routeApp);
   const setAppVolume = useMixerStore((s) => s.setAppVolume);
   const renameApp = useMixerStore((s) => s.renameApp);
+  const setAppIgnored = useMixerStore((s) => s.setAppIgnored);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -70,6 +71,14 @@ export function AppRow({ stream }: AppRowProps) {
             )}
             <button className="rename-btn" aria-label={`Rename ${displayName}`} onClick={startEdit}>
               <Ms name="edit" style={{ fontSize: 14 }} />
+            </button>
+            <button
+              className="rename-btn"
+              title="Ignore — hide this app from Sink"
+              aria-label={`Ignore ${displayName}`}
+              onClick={() => void setAppIgnored(stream, true)}
+            >
+              <Ms name="visibility_off" style={{ fontSize: 14 }} />
             </button>
           </div>
         )}

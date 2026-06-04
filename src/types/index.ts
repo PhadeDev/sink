@@ -46,6 +46,19 @@ export interface MicConfig {
   muted: boolean;
 }
 
+/** App history entry (mirrors Rust SeenApp). */
+export interface SeenApp {
+  match_prop: string;
+  match_value: string;
+  display_name: string;
+  icon_name: string | null;
+  /** Unix seconds of the last sighting. */
+  last_seen: number;
+  ignored: boolean;
+  assigned_sink: string | null;
+  alias: string | null;
+}
+
 /** Profile listing entry (Phase 5: trigger_device auto-loads the profile). */
 export interface ProfileInfo {
   name: string;

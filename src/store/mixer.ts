@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppStream, MicConfig, OutputDevice, ProfileInfo, VirtualSink } from "../types";
+import type {
+  AppStream,
+  MicConfig,
+  OutputDevice,
+  ProfileInfo,
+  SeenApp,
+  VirtualSink,
+} from "../types";
 
 // Faders fire on every pointer move; debounce backend calls per target so a
 // drag doesn't spawn a pactl subprocess per pixel. UI state updates
@@ -45,6 +52,16 @@ interface MixerStore {
   setProfileTrigger: (name: string, device: string | null) => Promise<void>;
   /** Create a clean-slate profile (saved, not applied). */
   createBlankProfile: (name: string) => Promise<void>;
+  /** App history (live + gone + ignored). */
+  seenApps: SeenApp[];
+  fetchSeenApps: () => Promise<void>;
+  setAppIgnored: (app: { match_prop: string; match_value: string }, ignored: boolean) => Promise<void>;
+  forgetApp: (app: { match_prop: string; match_value: string }) => Promise<void>;
+  /** Pre-route an app that isn't currently running (null clears). */
+  setAppAssignment: (
+    app: { match_prop: string; match_value: string },
+    sinkName: string | null,
+  ) => Promise<void>;
   /** Channel management: labels are free-form, sink names are stable. */
   addChannel: (label: string) => Promise<void>;
   renameChannel: (sinkName: string, label: string) => Promise<void>;
@@ -263,6 +280,55 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     try {
       await invoke("create_blank_profile", { name });
       await get().fetchProfiles();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  seenApps: [],
+
+  fetchSeenApps: async () => {
+    try {
+      const seenApps = await invoke<SeenApp[]>("get_seen_apps");
+      set({ seenApps });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  setAppIgnored: async (app, ignored) => {
+    try {
+      await invoke("set_app_ignored", {
+        matchProp: app.match_prop,
+        matchValue: app.match_value,
+        ignored,
+      });
+      await Promise.all([get().fetchSeenApps(), get().fetchAppStreams()]);
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  forgetApp: async (app) => {
+    try {
+      await invoke("forget_app", {
+        matchProp: app.match_prop,
+        matchValue: app.match_value,
+      });
+      await get().fetchSeenApps();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  setAppAssignment: async (app, sinkName) => {
+    try {
+      await invoke("set_app_assignment", {
+        matchProp: app.match_prop,
+        matchValue: app.match_value,
+        sinkName: sinkName ?? "",
+      });
+      await get().fetchSeenApps();
     } catch (e) {
       set({ error: String(e) });
     }

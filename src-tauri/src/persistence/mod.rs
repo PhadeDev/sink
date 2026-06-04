@@ -4,5 +4,6 @@ pub mod autostart;
 pub mod channels;
 pub mod mic;
 pub mod outputs;
+pub mod seen;
 pub mod profiles;
 pub mod wireplumber;

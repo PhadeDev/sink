@@ -22,6 +22,8 @@ pub struct MixerState {
     pub outputs: crate::persistence::outputs::ChannelOutputs,
     /// Mic chain configuration (persisted to disk).
     pub mic: crate::audio::types::MicConfig,
+    /// Every app identity ever observed (history + ignore list).
+    pub seen: crate::persistence::seen::SeenApps,
     /// Stream indices already considered for auto-routing this session.
     /// Each stream is enforced once, on first sight, so a user moving a
     /// stream elsewhere (here or in pavucontrol) isn't fought every poll.

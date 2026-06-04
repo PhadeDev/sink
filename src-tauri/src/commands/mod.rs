@@ -1,3 +1,4 @@
+pub mod apps;
 pub mod channels;
 pub mod devices;
 pub mod mic;

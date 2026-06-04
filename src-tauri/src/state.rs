@@ -19,6 +19,7 @@ impl AppState {
             outputs: crate::persistence::outputs::ChannelOutputs::load(),
             mic: crate::persistence::mic::load(),
             channel_defs: crate::persistence::channels::Channels::load(),
+            seen: crate::persistence::seen::SeenApps::load(),
             ..MixerState::default()
         };
         Self {
@@ -43,6 +44,9 @@ impl AppState {
             }
         }
         if let Ok(mut mixer) = self.mixer.lock() {
+            // Persist freshest last-seen timestamps on the way out (the
+            // poll only writes on structural changes).
+            let _ = mixer.seen.save();
             mixer.reset();
         }
         errors

@@ -14,6 +14,7 @@ export function useAudio() {
   const initialize = useMixerStore((s) => s.initialize);
   const fetchAppStreams = useMixerStore((s) => s.fetchAppStreams);
   const fetchOutputs = useMixerStore((s) => s.fetchOutputs);
+  const fetchSeenApps = useMixerStore((s) => s.fetchSeenApps);
   const setLevels = useMixerStore((s) => s.setLevels);
   const outputDevices = useMixerStore((s) => s.outputDevices);
   const profiles = useMixerStore((s) => s.profiles);
@@ -24,9 +25,10 @@ export function useAudio() {
     const id = setInterval(() => {
       void fetchAppStreams();
       void fetchOutputs();
+      void fetchSeenApps();
     }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [initialize, fetchAppStreams, fetchOutputs]);
+  }, [initialize, fetchAppStreams, fetchOutputs, fetchSeenApps]);
 
   useEffect(() => {
     const unlisten = listen<Levels>("levels", (event) => setLevels(event.payload));

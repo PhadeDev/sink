@@ -1,12 +1,20 @@
+import { useState } from "react";
 import { useMixerStore } from "../../store/mixer";
 import type { AppStream } from "../../types";
 import { Ms } from "../Icons";
 import { AppRow } from "./AppRow";
+import { AppIcon } from "./AppIcon";
+import { InactiveRow, relativeTime } from "./InactiveRow";
 
-/** Apps screen: per-app routing and volume, grouped by assigned channel. */
+/** Apps screen: live apps grouped by channel, previously-seen apps below
+ * (pre-routable while closed), ignored apps tucked away at the bottom. */
 export function AppList() {
   const appStreams = useMixerStore((s) => s.appStreams);
   const channels = useMixerStore((s) => s.channels);
+  const seenApps = useMixerStore((s) => s.seenApps);
+  const setAppIgnored = useMixerStore((s) => s.setAppIgnored);
+  const forgetApp = useMixerStore((s) => s.forgetApp);
+  const [showIgnored, setShowIgnored] = useState(false);
 
   const byName = (a: AppStream, b: AppStream) =>
     (a.alias ?? a.app_name).localeCompare(b.alias ?? b.app_name);
@@ -23,6 +31,12 @@ export function AppList() {
       streams: appStreams.filter((s) => !s.assigned_sink).sort(byName),
     },
   ].filter((g) => g.streams.length > 0);
+
+  const liveIdentity = new Set(appStreams.map((s) => `${s.match_prop}\0${s.match_value}`));
+  const inactive = seenApps
+    .filter((a) => !a.ignored && !liveIdentity.has(`${a.match_prop}\0${a.match_value}`))
+    .sort((a, b) => b.last_seen - a.last_seen);
+  const ignored = seenApps.filter((a) => a.ignored);
 
   return (
     <div className="content">
@@ -56,6 +70,64 @@ export function AppList() {
               </div>
             </div>
           ))
+        )}
+
+        {inactive.length > 0 && (
+          <>
+            <div className="section-label">Not running · {inactive.length}</div>
+            <div className="card card-inactive">
+              {inactive.map((app) => (
+                <InactiveRow key={`${app.match_prop}:${app.match_value}`} app={app} />
+              ))}
+            </div>
+            <div className="empty-hint" style={{ padding: "var(--sp-3)" }}>
+              Routing set here applies the moment the app next plays audio.
+            </div>
+          </>
+        )}
+
+        {ignored.length > 0 && (
+          <>
+            <button className="ignored-toggle" onClick={() => setShowIgnored((v) => !v)}>
+              <Ms name={showIgnored ? "expand_less" : "expand_more"} />
+              {ignored.length} ignored {ignored.length === 1 ? "app" : "apps"}
+            </button>
+            {showIgnored && (
+              <div className="card card-inactive">
+                {ignored.map((app) => (
+                  <div className="row row-inactive" key={`${app.match_prop}:${app.match_value}`}>
+                    <div className="ricon">
+                      <AppIcon iconName={app.icon_name} appName={app.display_name} />
+                    </div>
+                    <div className="rmain">
+                      <div className="rtitle">
+                        <span className="rname">{app.alias ?? app.display_name}</span>
+                      </div>
+                      <div className="rsub">last seen {relativeTime(app.last_seen)}</div>
+                    </div>
+                    <div className="rtrail">
+                      <button
+                        className="rename-btn row-action"
+                        title="Stop ignoring"
+                        aria-label={`Stop ignoring ${app.display_name}`}
+                        onClick={() => void setAppIgnored(app, false)}
+                      >
+                        <Ms name="visibility" style={{ fontSize: 16 }} />
+                      </button>
+                      <button
+                        className="rename-btn row-action"
+                        title="Forget — erase from history"
+                        aria-label={`Forget ${app.display_name}`}
+                        onClick={() => void forgetApp(app)}
+                      >
+                        <Ms name="delete" style={{ fontSize: 16 }} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
