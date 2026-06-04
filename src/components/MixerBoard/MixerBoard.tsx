@@ -124,6 +124,7 @@ export function MixerBoard() {
       </div>
       <div className="screen-scroll" style={{ padding: 0 }}>
         <div className="strips">
+          <MicStrip />
           {channels.map((channel) => (
             <ChannelStrip
               key={channel.name}
@@ -131,8 +132,7 @@ export function MixerBoard() {
               appCount={counts.get(channel.name) ?? 0}
             />
           ))}
-          {channels.length < MAX_CHANNELS ? <AddChannelStrip /> : <div className="add-zone" />}
-          <MicStrip />
+          {channels.length < MAX_CHANNELS && <AddChannelStrip />}
         </div>
       </div>
     </div>

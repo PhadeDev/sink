@@ -18,8 +18,6 @@ export function MicStrip() {
 
   return (
     <>
-      {/* divider: capture side starts here */}
-      <div className="strips-divider" aria-hidden="true" />
       <div className={"strip input-strip" + (micConfig.muted ? " muted" : "")}>
       <div className="strip-head">
         <div className="strip-icon strip-icon-mic">
@@ -60,6 +58,8 @@ export function MicStrip() {
         <span>Mic stream</span>
       </div>
       </div>
+      {/* divider: playback channels start to the right */}
+      <div className="strips-divider" aria-hidden="true" />
     </>
   );
 }
