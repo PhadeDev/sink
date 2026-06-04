@@ -389,6 +389,14 @@ body,
   min-height: 0;
   overflow-x: auto;
 }
+/* center the groups when the window is wider than the content; auto
+   margins collapse to zero when it overflows, keeping scroll correct */
+.mix-scroll > :first-child {
+  margin-left: auto;
+}
+.mix-scroll > :last-child {
+  margin-right: auto;
+}
 .mix-group {
   display: flex;
   flex-direction: column;
@@ -973,43 +981,6 @@ body,
   font-size: var(--fs-meta);
   color: var(--fg-secondary);
   font-variant-numeric: tabular-nums;
-}
-
-/* ChatMix balance slider */
-.chatmix {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-.chatmix-label {
-  font-size: var(--fs-caption);
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  color: var(--fg-muted);
-}
-.chatmix-track {
-  position: relative;
-  width: 160px;
-  height: 6px;
-  border-radius: var(--r-pill);
-  background: linear-gradient(
-    to right,
-    var(--accent) 0%,
-    var(--bg-active) 50%,
-    var(--online) 100%
-  );
-  cursor: pointer;
-}
-.chatmix-center {
-  position: absolute;
-  left: 50%;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  transform: translateX(-50%);
-  background: var(--fg-muted);
-  border-radius: 1px;
-  opacity: 0.6;
 }
 
 /* toggle switch */
