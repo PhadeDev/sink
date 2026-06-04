@@ -6,6 +6,7 @@ import { ChannelStrip } from "./ChannelStrip";
 import { ChatMix } from "./ChatMix";
 import { MicStrip } from "./MicStrip";
 import { OutputSelect } from "./OutputSelect";
+import { StreamMixStrip } from "./StreamMixStrip";
 
 // UI-side gate only; the backend enforces the real limit
 // (persistence/channels.rs MAX_CHANNELS — keep in sync).
@@ -135,6 +136,7 @@ export function MixerBoard() {
             />
           ))}
           {channels.length < MAX_CHANNELS && <AddChannelStrip />}
+          <StreamMixStrip />
         </div>
       </div>
     </div>

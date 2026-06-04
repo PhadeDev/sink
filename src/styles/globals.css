@@ -1076,6 +1076,16 @@ body,
   color: var(--accent-hover);
 }
 
+/* stream mix bus strip (record bus — amber accents) */
+.strip.bus-strip {
+  border-color: #46350f;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.05), var(--bg-surface) 38%);
+}
+.strip-icon-bus {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+}
+
 /* vertical divider between playback channels and the capture side */
 .strips-divider {
   flex: 0 0 1px;

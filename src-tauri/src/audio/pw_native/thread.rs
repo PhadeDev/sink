@@ -452,7 +452,7 @@ fn on_node(
             s.adopted_sinks.insert(node_name.clone(), global.id);
         }
         if !s.meters.contains_key(&node_name) {
-            match MeterHandle::new(core, &node_name, global.id, levels.clone()) {
+            match MeterHandle::new(core, &node_name, global.id, levels.clone(), true) {
                 Ok(meter) => {
                     s.meters.insert(node_name.clone(), meter);
                 }
@@ -468,6 +468,19 @@ fn on_node(
     if media_class == VIRTUAL_SOURCE_CLASS && node_name == MIC_NODE {
         drop(s);
         build_mic_streams(state);
+        return;
+    }
+
+    // The Stream Mix bus came up: meter it (direct source capture).
+    if media_class == VIRTUAL_SOURCE_CLASS && node_name == STREAM_MIX_NODE {
+        if !s.meters.contains_key(STREAM_MIX_NODE) {
+            match MeterHandle::new(core, STREAM_MIX_NODE, global.id, levels.clone(), false) {
+                Ok(meter) => {
+                    s.meters.insert(STREAM_MIX_NODE.to_string(), meter);
+                }
+                Err(e) => eprintln!("sink: stream mix meter failed: {e}"),
+            }
+        }
         return;
     }
 

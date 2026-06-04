@@ -25,11 +25,14 @@ struct MeterCtx {
 }
 
 impl MeterHandle {
+    /// `capture_sink` = true to tap a sink's monitor; false to capture a
+    /// source node directly (e.g. the Stream Mix virtual source).
     pub fn new(
         core: &pw::core::CoreRc,
         sink_name: &str,
         sink_id: u32,
         levels: Arc<LevelStore>,
+        capture_sink: bool,
     ) -> Result<Self, SinkError> {
         let slot = levels
             .slot_for(sink_name)
@@ -41,8 +44,8 @@ impl MeterHandle {
             "media.type" => "Audio",
             "media.category" => "Capture",
             "node.name" => format!("{METER_PREFIX}{sink_name}"),
-            // Capture the sink's monitor, don't keep the sink busy.
-            "stream.capture.sink" => "true",
+            // For sinks: capture the monitor, don't keep the sink busy.
+            "stream.capture.sink" => if capture_sink { "true" } else { "false" },
             "node.passive" => "true",
         };
         let stream = pw::stream::StreamRc::new(core.clone(), "sink-meter", props)
