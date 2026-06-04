@@ -28,7 +28,7 @@ pub fn save(name: Option<&str>) -> Result<(), SinkError> {
     match name {
         Some(name) => {
             if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
+                crate::persistence::ensure_private_dir(parent)?;
             }
             fs::write(&path, name)?;
         }

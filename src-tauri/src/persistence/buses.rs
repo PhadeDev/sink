@@ -103,7 +103,7 @@ impl Buses {
     pub fn save(&self) -> Result<(), SinkError> {
         let path = Self::config_path()?;
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            crate::persistence::ensure_private_dir(parent)?;
         }
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| SinkError::Config(format!("serialize buses: {e}")))?;

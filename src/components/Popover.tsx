@@ -65,14 +65,47 @@ export function Popover({ open, onClose, children, side = "bottom", align = "sta
     setPosition({ left, top });
   }, [open, side, align]);
 
-  // Escape closes, like the scrim click.
+  // Keyboard handling while open: Escape closes (like the scrim click)
+  // and Tab is contained inside the menu so focus can't wander into the
+  // UI underneath. Focus moves into the menu on open and back to the
+  // trigger on close.
   useEffect(() => {
     if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    menuRef.current?.focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const menu = menuRef.current;
+      if (!menu) return;
+      const focusables = menu.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) {
+        // Nothing tabbable (item rows are click-driven) — keep focus put.
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || !menu.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !menu.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      previous?.focus?.();
+    };
   }, [open, onClose]);
 
   return (
@@ -86,6 +119,7 @@ export function Popover({ open, onClose, children, side = "bottom", align = "sta
               ref={menuRef}
               className="menu"
               role="menu"
+              tabIndex={-1}
               style={{
                 position: "fixed",
                 visibility: position ? "visible" : "hidden",
