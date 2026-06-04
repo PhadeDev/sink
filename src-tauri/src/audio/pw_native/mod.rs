@@ -141,9 +141,21 @@ impl AudioBackend for PipeWireBackend {
         })
     }
 
-    fn set_channel_stream_mix(&self, sink_name: &str, enabled: bool) -> Result<(), SinkError> {
-        let sink_name = sink_name.to_string();
-        self.request(|reply| Cmd::SetStreamMix { sink_name, enabled, reply })
+    fn create_bus(&self, name: &str, label: &str) -> Result<(), SinkError> {
+        let name = name.to_string();
+        let label = label.to_string();
+        self.request(|reply| Cmd::CreateBus { name, label, reply })
+    }
+
+    fn destroy_bus(&self, name: &str) -> Result<(), SinkError> {
+        let name = name.to_string();
+        self.request(|reply| Cmd::DestroyBus { name, reply })
+    }
+
+    fn set_bus_members(&self, name: &str, channels: &[String]) -> Result<(), SinkError> {
+        let name = name.to_string();
+        let channels = channels.to_vec();
+        self.request(|reply| Cmd::SetBusMembers { name, channels, reply })
     }
 
     fn list_input_devices(&self) -> Result<Vec<crate::audio::types::OutputDevice>, SinkError> {

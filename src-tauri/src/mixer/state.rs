@@ -27,6 +27,8 @@ pub struct MixerState {
     /// Profile changes autosave into this profile (live-bound, not a
     /// snapshot). None = unmanaged state.
     pub active_profile: Option<String>,
+    /// User-defined mixes (record buses), persisted to disk.
+    pub buses: crate::persistence::buses::Buses,
     /// Stream indices already considered for auto-routing this session.
     /// Each stream is enforced once, on first sight, so a user moving a
     /// stream elsewhere (here or in pavucontrol) isn't fought every poll.

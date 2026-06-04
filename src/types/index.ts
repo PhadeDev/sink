@@ -66,6 +66,14 @@ export interface SeenApp {
   alias: string | null;
 }
 
+/** A user-defined mix (record bus). The label is what recorders display. */
+export interface BusDef {
+  name: string;
+  label: string;
+  /** Member channel sink names. */
+  channels: string[];
+}
+
 /** Profile listing entry (Phase 5: trigger_device auto-loads the profile). */
 export interface ProfileInfo {
   name: string;

@@ -25,7 +25,6 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const renameChannel = useMixerStore((s) => s.renameChannel);
   const removeChannel = useMixerStore((s) => s.removeChannel);
   const setChannelIcon = useMixerStore((s) => s.setChannelIcon);
-  const setChannelStreamMix = useMixerStore((s) => s.setChannelStreamMix);
   const channelCount = useMixerStore((s) => s.channels.length);
 
   const [editing, setEditing] = useState(false);
@@ -163,8 +162,6 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
         compact
         value={output}
         onChange={(o) => void setChannelOutput(channel.name, o)}
-        streamMix={channel.stream_mix}
-        onStreamMixChange={(enabled) => void setChannelStreamMix(channel.name, enabled)}
       />
 
       <Modal

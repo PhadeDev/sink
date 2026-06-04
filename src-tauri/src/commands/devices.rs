@@ -132,14 +132,14 @@ pub fn init_virtual_devices(
             .map_err(|e| e.to_string())?;
     }
 
-    let (outputs, mic) = {
+    let (outputs, mic, buses) = {
         let mut mixer = state.lock_mixer()?;
         mixer.init_defaults();
-        (mixer.outputs.clone(), mixer.mic.clone())
+        (mixer.outputs.clone(), mixer.mic.clone(), mixer.buses.clone())
     };
 
     // Wire every channel to its saved output (or the system default) so
-    // channels are audible from the start, and apply Stream Mix exclusions.
+    // channels are audible from the start.
     for def in &defs.channels {
         if let Err(e) = state
             .backend
@@ -147,10 +147,16 @@ pub fn init_virtual_devices(
         {
             eprintln!("sink: output routing for {} failed: {e}", def.name);
         }
-        if !def.stream_mix {
-            if let Err(e) = state.backend.set_channel_stream_mix(&def.name, false) {
-                eprintln!("sink: stream-mix exclusion for {} failed: {e}", def.name);
-            }
+    }
+
+    // Bring up the user's mixes and their memberships.
+    for bus in &buses.buses {
+        if let Err(e) = state.backend.create_bus(&bus.name, &bus.label) {
+            eprintln!("sink: creating mix {} failed: {e}", bus.name);
+            continue;
+        }
+        if let Err(e) = state.backend.set_bus_members(&bus.name, &bus.channels) {
+            eprintln!("sink: members for mix {} failed: {e}", bus.name);
         }
     }
 
@@ -172,6 +178,7 @@ pub fn init_virtual_devices(
             assignments: mixer.assignments.clone(),
             outputs: mixer.outputs.clone(),
             trigger_device: None,
+            buses: mixer.buses.clone(),
         };
         match crate::persistence::profiles::save(&default) {
             Ok(()) => {

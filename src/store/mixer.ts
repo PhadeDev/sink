@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppStream,
+  BusDef,
   MicConfig,
   OutputDevice,
   ProfileInfo,
@@ -69,8 +70,13 @@ interface MixerStore {
   renameChannel: (sinkName: string, label: string) => Promise<void>;
   removeChannel: (sinkName: string) => Promise<void>;
   setChannelIcon: (sinkName: string, icon: string) => Promise<void>;
-  /** Include/exclude a channel from the Stream Mix (OBS recording). */
-  setChannelStreamMix: (sinkName: string, enabled: boolean) => Promise<void>;
+  /** User-defined mixes (record buses). */
+  buses: BusDef[];
+  fetchBuses: () => Promise<void>;
+  addBus: (label: string) => Promise<void>;
+  renameBus: (name: string, label: string) => Promise<void>;
+  removeBus: (name: string) => Promise<void>;
+  setBusMembers: (name: string, channels: string[]) => Promise<void>;
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
@@ -131,6 +137,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         get().fetchProfiles(),
         get().fetchOutputs(),
         get().fetchMic(),
+        get().fetchBuses(),
       ]);
       // Active profile is tracked backend-side (survives restarts).
       try {
@@ -310,6 +317,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
       get().fetchOutputs(),
       get().fetchSeenApps(),
       get().fetchProfiles(),
+      get().fetchBuses(),
     ]);
   },
 
@@ -382,6 +390,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         get().fetchAppStreams(),
         get().fetchOutputs(),
         get().fetchSeenApps(),
+        get().fetchBuses(),
       ]);
     } catch (e) {
       set({ error: String(e) });
@@ -407,17 +416,56 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     }
   },
 
-  setChannelStreamMix: async (sinkName, enabled) => {
-    set((s) => ({
-      channels: s.channels.map((c) =>
-        c.name === sinkName ? { ...c, stream_mix: enabled } : c,
-      ),
-    }));
+  buses: [],
+
+  fetchBuses: async () => {
     try {
-      await invoke("set_channel_stream_mix", { sinkName, enabled });
+      const buses = await invoke<BusDef[]>("list_buses");
+      set({ buses });
     } catch (e) {
       set({ error: String(e) });
-      await get().fetchChannels();
+    }
+  },
+
+  addBus: async (label) => {
+    try {
+      await invoke("add_bus", { label });
+      await get().fetchBuses();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  renameBus: async (name, label) => {
+    set((s) => ({
+      buses: s.buses.map((b) => (b.name === name ? { ...b, label } : b)),
+    }));
+    try {
+      await invoke("rename_bus", { name, label });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchBuses();
+    }
+  },
+
+  removeBus: async (name) => {
+    try {
+      await invoke("remove_bus", { name });
+      await get().fetchBuses();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  setBusMembers: async (name, channels) => {
+    set((s) => ({
+      buses: s.buses.map((b) => (b.name === name ? { ...b, channels } : b)),
+    }));
+    try {
+      await invoke("set_bus_members", { name, channels });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchBuses();
     }
   },
 

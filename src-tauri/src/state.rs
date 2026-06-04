@@ -23,12 +23,15 @@ impl AppState {
     pub fn new(backend: Arc<dyn AudioBackend>, backend_native: bool) -> Self {
         // Saved assignments are loaded eagerly so auto-routing can enforce
         // them as soon as the sinks exist.
+        let channel_defs = crate::persistence::channels::Channels::load();
+        let buses = crate::persistence::buses::Buses::load(&channel_defs);
         let mixer = MixerState {
             assignments: crate::persistence::assignments::Assignments::load(),
             aliases: crate::persistence::aliases::Aliases::load(),
             outputs: crate::persistence::outputs::ChannelOutputs::load(),
             mic: crate::persistence::mic::load(),
-            channel_defs: crate::persistence::channels::Channels::load(),
+            channel_defs,
+            buses,
             seen: crate::persistence::seen::SeenApps::load(),
             active_profile: crate::persistence::active::load(),
             ..MixerState::default()

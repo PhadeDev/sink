@@ -22,6 +22,7 @@ use crate::audio::pw_native::mic::{MicStreams, MIC_NODE};
 use crate::audio::pw_native::pods;
 use crate::audio::types::{is_virtual_sink, AppStream, MicConfig, OutputDevice};
 use crate::error::SinkError;
+use crate::persistence::buses::is_bus_name;
 
 const STREAM_CLASS: &str = "Stream/Output/Audio";
 const SINK_CLASS: &str = "Audio/Sink";
@@ -32,11 +33,10 @@ const VIRTUAL_SOURCE_CLASS: &str = "Audio/Source/Virtual";
 pub const INTERNAL_PREFIX: &str = "sink-internal-";
 /// node.name prefix of our meter capture streams.
 pub const METER_PREFIX: &str = "sink-internal-meter-";
-/// node.name of the Stream Mix virtual source (Phase 5): receives a copy of
-/// every channel so OBS can capture the whole mix as one source.
-pub const STREAM_MIX_NODE: &str = "sink_stream";
 
 type Reply<T> = mpsc::Sender<Result<T, SinkError>>;
+/// A set of live links: (output port, input port, proxy).
+type LinkSet = Vec<(u32, u32, pw::link::Link)>;
 
 pub enum Cmd {
     CreateSink { name: String, label: String, reply: Reply<()> },
@@ -49,8 +49,12 @@ pub enum Cmd {
     MoveStream { id: u32, sink_name: String, reply: Reply<()> },
     /// Route a channel's monitor to an output device (None = follow default).
     SetChannelOutput { sink_name: String, output_name: Option<String>, reply: Reply<()> },
-    /// Include/exclude a channel's monitor from the Stream Mix source.
-    SetStreamMix { sink_name: String, enabled: bool, reply: Reply<()> },
+    /// Create a mix bus (capturable virtual source).
+    CreateBus { name: String, label: String, reply: Reply<()> },
+    /// Destroy a mix bus and its links.
+    DestroyBus { name: String, reply: Reply<()> },
+    /// Replace the channel set feeding a bus.
+    SetBusMembers { name: String, channels: Vec<String>, reply: Reply<()> },
     /// Apply mic chain configuration (create/destroy/re-tune as needed).
     SetMicConfig { config: MicConfig, reply: Reply<()> },
     /// Hardware capture devices (microphones).
@@ -106,22 +110,23 @@ struct State {
     ports: HashMap<u32, PortEntry>,
     /// Channel sink name -> chosen output node.name (None = follow default).
     channel_outputs: HashMap<String, Option<String>>,
-    /// Channels excluded from the Stream Mix (absent = included).
-    stream_mix_excluded: std::collections::HashSet<String>,
-    /// Channel sink name -> live loopback links: (monitor port, input port, proxy).
-    channel_links: HashMap<String, Vec<(u32, u32, pw::link::Link)>>,
+
+    /// Channel sink name -> live loopback links.
+    channel_links: HashMap<String, LinkSet>,
     /// Phase 3 mic chain.
     mic_config: MicConfig,
     /// Proxy for the sink_mic virtual source (kept alive while enabled).
     mic_source: Option<Node>,
     mic_streams: Option<MicStreams>,
     levels: Option<Arc<LevelStore>>,
-    /// Phase 5 Stream Mix virtual source proxy.
-    stream_mix_source: Option<Node>,
-    /// Channel sink name -> links into the Stream Mix source.
-    stream_links: HashMap<String, Vec<(u32, u32, pw::link::Link)>>,
+    /// Mix buses we own: node name -> proxy.
+    bus_sources: HashMap<String, Node>,
+    /// Bus node name -> member channel sink names.
+    bus_members: HashMap<String, std::collections::HashSet<String>>,
+    /// (bus, channel) -> live links feeding the bus.
+    bus_links: HashMap<(String, String), LinkSet>,
     /// Links from the mic playback stream into the virtual mic.
-    mic_links: Vec<(u32, u32, pw::link::Link)>,
+    mic_links: LinkSet,
 }
 
 impl State {
@@ -471,16 +476,18 @@ fn on_node(
         return;
     }
 
-    // The Stream Mix bus came up: meter it (direct source capture).
-    if media_class == VIRTUAL_SOURCE_CLASS && node_name == STREAM_MIX_NODE {
-        if !s.meters.contains_key(STREAM_MIX_NODE) {
-            match MeterHandle::new(core, STREAM_MIX_NODE, global.id, levels.clone(), false) {
+    // A mix bus came up: meter it (direct source capture) and link members.
+    if media_class == VIRTUAL_SOURCE_CLASS && is_bus_name(&node_name) {
+        if !s.meters.contains_key(&node_name) {
+            match MeterHandle::new(core, &node_name, global.id, levels.clone(), false) {
                 Ok(meter) => {
-                    s.meters.insert(STREAM_MIX_NODE.to_string(), meter);
+                    s.meters.insert(node_name.clone(), meter);
                 }
-                Err(e) => eprintln!("sink: stream mix meter failed: {e}"),
+                Err(e) => eprintln!("sink: bus meter for {node_name} failed: {e}"),
             }
         }
+        drop(s);
+        ensure_all_links(state);
         return;
     }
 
@@ -581,7 +588,7 @@ fn create_links(
     out_node: u32,
     in_node: u32,
     pairs: &[(u32, u32)],
-) -> Vec<(u32, u32, pw::link::Link)> {
+) -> LinkSet {
     let mut created = Vec::new();
     for (monitor_port, input_port) in pairs {
         match core.create_object::<pw::link::Link>(
@@ -611,7 +618,12 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
         return;
     };
     let mut s = state.borrow_mut();
-    let stream_mix_id = s.node_by_name(STREAM_MIX_NODE).map(|n| n.id);
+    // Live bus nodes: (bus name, node id).
+    let bus_ids: Vec<(String, u32)> = s
+        .bus_members
+        .keys()
+        .filter_map(|bus| s.node_by_name(bus).map(|n| (bus.clone(), n.id)))
+        .collect();
 
     // Live channel set: every virtual sink we created or adopted.
     let channel_names: Vec<String> = s
@@ -661,22 +673,30 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
             }
         }
 
-        // ---- stream mix links (skipped for excluded channels) ----
-        let mix_pairs = stream_mix_id
-            .filter(|_| !s.stream_mix_excluded.contains(sink_name))
-            .map(|t| desired_pairs(&s, channel_id, t))
-            .unwrap_or_default();
-        let mix_current: Vec<(u32, u32)> = s
-            .stream_links
-            .get(sink_name)
-            .map(|links| links.iter().map(|(o, i, _)| (*o, *i)).collect())
-            .unwrap_or_default();
-        if mix_current != mix_pairs {
-            s.stream_links.remove(sink_name);
-            if let Some(mix_id) = stream_mix_id {
-                let created = create_links(&core, sink_name, channel_id, mix_id, &mix_pairs);
-                if !created.is_empty() {
-                    s.stream_links.insert(sink_name.to_string(), created);
+        // ---- mix bus links (one set per bus, membership-gated) ----
+        for (bus_name, bus_id) in &bus_ids {
+            let included = s
+                .bus_members
+                .get(bus_name)
+                .is_some_and(|members| members.contains(sink_name));
+            let pairs = if included {
+                desired_pairs(&s, channel_id, *bus_id)
+            } else {
+                Vec::new()
+            };
+            let key = (bus_name.clone(), sink_name.to_string());
+            let current: Vec<(u32, u32)> = s
+                .bus_links
+                .get(&key)
+                .map(|links| links.iter().map(|(o, i, _)| (*o, *i)).collect())
+                .unwrap_or_default();
+            if current != pairs {
+                s.bus_links.remove(&key);
+                if !pairs.is_empty() {
+                    let created = create_links(&core, sink_name, channel_id, *bus_id, &pairs);
+                    if !created.is_empty() {
+                        s.bus_links.insert(key, created);
+                    }
                 }
             }
         }
@@ -722,24 +742,6 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 }
                 Err(e) => {
                     let _ = reply.send(Err(SinkError::Config(format!("create sink: {e}"))));
-                    return;
-                }
-            }
-
-            // Phase 5: the Stream Mix source rides along with the channels.
-            if s.stream_mix_source.is_none() && s.node_by_name(STREAM_MIX_NODE).is_none() {
-                match core.create_object::<Node>(
-                    "adapter",
-                    &pw::properties::properties! {
-                        "factory.name" => "support.null-audio-sink",
-                        "node.name" => STREAM_MIX_NODE,
-                        "node.description" => "Sink Stream Mix",
-                        "media.class" => VIRTUAL_SOURCE_CLASS,
-                        "audio.position" => "[ FL FR ]",
-                    },
-                ) {
-                    Ok(proxy) => s.stream_mix_source = Some(proxy),
-                    Err(e) => eprintln!("sink: stream mix source failed: {e}"),
                 }
             }
         }
@@ -747,7 +749,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             let mut s = state.borrow_mut();
             s.meters.remove(&name);
             s.channel_links.remove(&name);
-            s.stream_links.remove(&name);
+            s.bus_links.retain(|(_, ch), _| ch != &name);
             s.channel_outputs.remove(&name);
             if let Some(levels) = &s.levels {
                 levels.release(&name);
@@ -837,15 +839,55 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             let s = state.borrow();
             let _ = reply.send(set_props(s.nodes.get(&id), Some(percent), None));
         }
-        Cmd::SetStreamMix { sink_name, enabled, reply } => {
-            {
-                let mut s = state.borrow_mut();
-                if enabled {
-                    s.stream_mix_excluded.remove(&sink_name);
-                } else {
-                    s.stream_mix_excluded.insert(sink_name);
+        Cmd::CreateBus { name, label, reply } => {
+            let mut s = state.borrow_mut();
+            if s.bus_sources.contains_key(&name) || s.node_by_name(&name).is_some() {
+                let _ = reply.send(Ok(())); // already there (e.g. adopted)
+                return;
+            }
+            let Some(core) = CORE.with(|c| c.borrow().clone()) else {
+                let _ = reply.send(Err(SinkError::Config("core is gone".into())));
+                return;
+            };
+            match core.create_object::<Node>(
+                "adapter",
+                &pw::properties::properties! {
+                    "factory.name" => "support.null-audio-sink",
+                    "node.name" => name.as_str(),
+                    "node.description" => label.as_str(),
+                    "media.class" => VIRTUAL_SOURCE_CLASS,
+                    "audio.position" => "[ FL FR ]",
+                },
+            ) {
+                Ok(proxy) => {
+                    s.bus_sources.insert(name, proxy);
+                    let _ = reply.send(Ok(()));
+                }
+                Err(e) => {
+                    let _ = reply.send(Err(SinkError::Config(format!("create bus: {e}"))));
                 }
             }
+        }
+        Cmd::DestroyBus { name, reply } => {
+            let mut s = state.borrow_mut();
+            s.meters.remove(&name);
+            s.bus_members.remove(&name);
+            s.bus_links.retain(|(bus, _), _| bus != &name);
+            if let Some(levels) = &s.levels {
+                levels.release(&name);
+            }
+            if let Some(proxy) = s.bus_sources.remove(&name) {
+                if let Some(core) = CORE.with(|c| c.borrow().clone()) {
+                    let _ = core.destroy_object(proxy);
+                }
+            }
+            let _ = reply.send(Ok(()));
+        }
+        Cmd::SetBusMembers { name, channels, reply } => {
+            state
+                .borrow_mut()
+                .bus_members
+                .insert(name, channels.into_iter().collect());
             ensure_all_links(state);
             let _ = reply.send(Ok(()));
         }
@@ -932,7 +974,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     n.media_class == SOURCE_CLASS
                         || (n.media_class == VIRTUAL_SOURCE_CLASS
                             && name != Some(MIC_NODE)
-                            && name != Some(STREAM_MIX_NODE))
+                            && !name.is_some_and(is_bus_name))
                 })
                 .map(|n| OutputDevice {
                     index: n.id,

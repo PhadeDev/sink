@@ -107,16 +107,6 @@ impl Channels {
         self.channels.iter().find(|c| c.name == name)
     }
 
-    pub fn set_stream_mix(&mut self, name: &str, enabled: bool) -> Result<(), SinkError> {
-        let def = self
-            .channels
-            .iter_mut()
-            .find(|c| c.name == name)
-            .ok_or_else(|| SinkError::UnknownSink(name.to_string()))?;
-        def.stream_mix = enabled;
-        Ok(())
-    }
-
     pub fn set_icon(&mut self, name: &str, icon: Option<String>) -> Result<(), SinkError> {
         let def = self
             .channels

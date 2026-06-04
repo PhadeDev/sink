@@ -34,9 +34,15 @@ pub trait AudioBackend: Send + Sync {
         output_name: Option<&str>,
     ) -> Result<(), SinkError>;
 
-    /// Include or exclude a channel from the Stream Mix source (what OBS
-    /// records). Native-only; the pactl fallback has no Stream Mix.
-    fn set_channel_stream_mix(&self, sink_name: &str, enabled: bool) -> Result<(), SinkError>;
+    /// Create a mix bus: a capturable virtual source whose label is the
+    /// device name recorders (OBS) display. Native-only.
+    fn create_bus(&self, name: &str, label: &str) -> Result<(), SinkError>;
+
+    /// Destroy a mix bus (its links go with it).
+    fn destroy_bus(&self, name: &str) -> Result<(), SinkError>;
+
+    /// Replace the set of channels feeding a mix bus.
+    fn set_bus_members(&self, name: &str, channels: &[String]) -> Result<(), SinkError>;
 
     /// Hardware capture devices (microphones) for the Phase 3 mic chain.
     fn list_input_devices(&self) -> Result<Vec<OutputDevice>, SinkError>;

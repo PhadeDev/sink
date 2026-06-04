@@ -21,6 +21,7 @@ pub fn autosave_active(mixer: &crate::mixer::state::MixerState) {
         assignments: mixer.assignments.clone(),
         outputs: mixer.outputs.clone(),
         trigger_device: trigger,
+        buses: mixer.buses.clone(),
     };
     if let Err(e) = profiles::save(&profile) {
         eprintln!("sink: autosave of profile {name} failed: {e}");
@@ -114,16 +115,44 @@ pub fn load_profile(
         {
             eprintln!("sink: profile output for {} failed: {e}", channel.name);
         }
-        if let Err(e) = state
-            .backend
-            .set_channel_stream_mix(&channel.name, channel.stream_mix)
-        {
-            eprintln!("sink: profile stream-mix for {} failed: {e}", channel.name);
+    }
+
+    // ---- mix bus reconciliation ----
+    // Old profiles (pre-buses) fall back to a Stream Mix fed by the
+    // channels' legacy stream_mix flags.
+    let mut target_buses = profile.buses.clone();
+    if target_buses == crate::persistence::buses::Buses::default()
+        && target_buses.buses[0].channels.is_empty()
+    {
+        target_buses.buses[0].channels = profile
+            .channels
+            .iter()
+            .filter(|c| c.stream_mix)
+            .map(|c| c.name.clone())
+            .collect();
+    }
+    let current_buses = {
+        let mixer = state.lock_mixer()?;
+        mixer.buses.clone()
+    };
+    for old in &current_buses.buses {
+        if target_buses.get(&old.name).is_none() {
+            let _ = state.backend.destroy_bus(&old.name);
         }
+    }
+    for bus in &target_buses.buses {
+        if current_buses.get(&bus.name).is_none() {
+            if let Err(e) = state.backend.create_bus(&bus.name, &bus.label) {
+                eprintln!("sink: profile mix {} failed: {e}", bus.name);
+                continue;
+            }
+        }
+        let _ = state.backend.set_bus_members(&bus.name, &bus.channels);
     }
 
     let (defs, assignments, outputs) = {
         let mut mixer = state.lock_mixer()?;
+        mixer.buses = target_buses.clone();
         mixer.channel_defs = crate::persistence::channels::Channels {
             channels: profile
                 .channels
@@ -150,6 +179,7 @@ pub fn load_profile(
     defs.save().map_err(|e| e.to_string())?;
     assignments.save().map_err(|e| e.to_string())?;
     outputs.save().map_err(|e| e.to_string())?;
+    target_buses.save().map_err(|e| e.to_string())?;
     wireplumber::write(&assignments).map_err(|e| e.to_string())?;
     // The loaded profile becomes the live-bound (autosaving) one.
     set_active(&state, Some(name))?;
@@ -184,6 +214,7 @@ pub fn create_blank_profile(app: tauri::AppHandle, name: String) -> Result<(), S
         assignments: Default::default(),
         outputs: Default::default(),
         trigger_device: None,
+        buses: Default::default(),
     };
     profiles::save(&profile).map_err(|e| e.to_string())?;
     crate::refresh_tray(&app);

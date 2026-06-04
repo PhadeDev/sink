@@ -48,32 +48,6 @@ pub fn add_channel(
     Ok(())
 }
 
-/// Include or exclude a channel from the Stream Mix (what OBS records).
-#[tauri::command]
-pub fn set_channel_stream_mix(
-    state: State<'_, AppState>,
-    sink_name: String,
-    enabled: bool,
-) -> Result<(), String> {
-    state
-        .backend
-        .set_channel_stream_mix(&sink_name, enabled)
-        .map_err(|e| e.to_string())?;
-    let defs = {
-        let mut mixer = state.lock_mixer()?;
-        mixer
-            .channel_defs
-            .set_stream_mix(&sink_name, enabled)
-            .map_err(|e| e.to_string())?;
-        if let Some(channel) = mixer.channel_mut(&sink_name) {
-            channel.stream_mix = enabled;
-        }
-        crate::commands::profiles::autosave_active(&mixer);
-        mixer.channel_defs.clone()
-    };
-    defs.save().map_err(|e| e.to_string())
-}
-
 /// Change a channel's strip icon.
 #[tauri::command]
 pub fn set_channel_icon(
@@ -150,7 +124,7 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
         .destroy_virtual_sink(&sink_name)
         .map_err(|e| e.to_string())?;
 
-    let (defs, assignments, outputs) = {
+    let (defs, assignments, outputs, buses) = {
         let mut mixer = state.lock_mixer()?;
         mixer.channels.retain(|c| c.name != sink_name);
         mixer
@@ -158,6 +132,8 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
             .assignments
             .retain(|a| a.sink_name != sink_name);
         mixer.outputs.outputs.remove(&sink_name);
+        // Drop the channel from every mix's membership too.
+        mixer.buses.remove_channel(&sink_name);
         // Re-evaluate auto-routing with the channel gone.
         mixer.auto_routed.clear();
         crate::commands::profiles::autosave_active(&mixer);
@@ -165,12 +141,18 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
             mixer.channel_defs.clone(),
             mixer.assignments.clone(),
             mixer.outputs.clone(),
+            mixer.buses.clone(),
         )
     };
+
+    for bus in &buses.buses {
+        let _ = state.backend.set_bus_members(&bus.name, &bus.channels);
+    }
 
     defs.save().map_err(|e| e.to_string())?;
     assignments.save().map_err(|e| e.to_string())?;
     outputs.save().map_err(|e| e.to_string())?;
+    buses.save().map_err(|e| e.to_string())?;
     wireplumber::write(&assignments).map_err(|e| e.to_string())?;
     Ok(())
 }

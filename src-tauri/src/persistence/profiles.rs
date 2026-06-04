@@ -22,6 +22,9 @@ pub struct Profile {
     /// profile — Sonar-style hardware profile switching.
     #[serde(default)]
     pub trigger_device: Option<String>,
+    /// User-defined mixes (record buses) with their member channels.
+    #[serde(default)]
+    pub buses: crate::persistence::buses::Buses,
 }
 
 /// Listing entry: name plus trigger metadata for the UI/auto-switcher.

@@ -2,6 +2,7 @@ pub mod active;
 pub mod aliases;
 pub mod assignments;
 pub mod autostart;
+pub mod buses;
 pub mod channels;
 pub mod mic;
 pub mod outputs;

@@ -318,9 +318,19 @@ impl AudioBackend for PactlBackend {
         ))
     }
 
-    fn set_channel_stream_mix(&self, _sink_name: &str, _enabled: bool) -> Result<(), SinkError> {
+    fn create_bus(&self, _name: &str, _label: &str) -> Result<(), SinkError> {
         Err(SinkError::Config(
-            "the Stream Mix requires the native PipeWire backend".into(),
+            "mix buses require the native PipeWire backend".into(),
+        ))
+    }
+
+    fn destroy_bus(&self, _name: &str) -> Result<(), SinkError> {
+        Ok(()) // nothing to destroy in the fallback
+    }
+
+    fn set_bus_members(&self, _name: &str, _channels: &[String]) -> Result<(), SinkError> {
+        Err(SinkError::Config(
+            "mix buses require the native PipeWire backend".into(),
         ))
     }
 
