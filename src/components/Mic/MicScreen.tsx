@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMixerStore } from "../../store/mixer";
-import { MAX_MIC_GAIN, MIC_LEVEL_KEY } from "../../types";
+import { MAX_MIC_GAIN, MIC_LEVEL_KEY, MIC_DSP_DEFAULTS } from "../../types";
+import { DspSlider } from "./DspSlider";
 import { perceptual } from "../../lib/audio";
 import { HSlider } from "../AppList/HSlider";
 import { Ms } from "../Icons";
@@ -63,7 +64,9 @@ export function MicScreen() {
     <div className="content">
       <div className="screen-head">
         <h1>Microphone</h1>
-        <div className="sub">Select "Sink Mic" in Discord/OBS</div>
+        <div className="sub">
+          Takes your mic in, processes it, publishes "{micConfig.output_label}" for any app
+        </div>
         <div className="screen-head-actions">
           {micConfig.enabled && !micConfig.muted && (
             <span className="tag live">
@@ -132,12 +135,32 @@ export function MicScreen() {
                 </div>
                 <button
                   className={"sbtn" + (micConfig.muted ? " on-mute" : "")}
-                  style={{ width: 34 }}
+                  style={{ width: 34, flex: "0 0 34px" }}
                   title={micConfig.muted ? "Unmute mic" : "Mute mic"}
                   onClick={() => void setMicConfig({ muted: !micConfig.muted })}
                 >
                   <Ms name={micConfig.muted ? "mic_off" : "mic"} style={{ fontSize: 18 }} />
                 </button>
+                <button
+                  className={"sbtn" + (listening ? " on-mon" : "")}
+                  style={{ width: 34, flex: "0 0 34px" }}
+                  title="Listen to yourself — hear the processed mic to tune the chain (wear headphones)"
+                  onClick={() => void toggleMonitor(MIC_LEVEL_KEY)}
+                >
+                  <Ms name="headphones" style={{ fontSize: 18 }} />
+                </button>
+              </div>
+
+              <div className="mic-gain-row">
+                <span className="mic-gain-label">Name</span>
+                <input
+                  className="menu-input"
+                  style={{ flex: 1 }}
+                  value={micConfig.output_label}
+                  maxLength={32}
+                  title="How other apps list your processed mic"
+                  onChange={(e) => void setMicConfig({ output_label: e.target.value })}
+                />
               </div>
 
               <MicLevel />
@@ -152,42 +175,79 @@ export function MicScreen() {
               </div>
             </div>
 
-            <div className="section-label">Check your sound</div>
-            <div className="card" style={{ padding: "var(--sp-2)" }}>
-              <ToggleRow
-                icon="headphones"
-                title="Listen to yourself"
-                sub="Hear the processed mic on your output — tune the gate and compressor live"
-                on={listening}
-                onToggle={() => void toggleMonitor(MIC_LEVEL_KEY)}
-              />
-            </div>
-
             <div className="section-label">Processing</div>
             <div className="card" style={{ padding: "var(--sp-2)" }}>
               <ToggleRow
                 icon="noise_control_off"
                 title="Noise gate"
-                sub="Cuts the noise floor between words (-40 dB threshold)"
+                sub="Cuts the noise floor between words"
                 on={micConfig.gate_enabled}
                 onToggle={() => void setMicConfig({ gate_enabled: !micConfig.gate_enabled })}
               />
+              {micConfig.gate_enabled && (
+                <DspSlider
+                  label="Threshold"
+                  min={-80}
+                  max={-10}
+                  step={1}
+                  unit=" dB"
+                  value={micConfig.gate_threshold_db}
+                  defaultValue={MIC_DSP_DEFAULTS.gate_threshold_db}
+                  onChange={(v) => void setMicConfig({ gate_threshold_db: v })}
+                />
+              )}
               <ToggleRow
                 icon="compress"
                 title="Compressor"
-                sub="Evens out loud peaks and quiet speech (3:1 ratio)"
+                sub="Evens out loud peaks and quiet speech"
                 on={micConfig.comp_enabled}
                 onToggle={() => void setMicConfig({ comp_enabled: !micConfig.comp_enabled })}
               />
+              {micConfig.comp_enabled && (
+                <>
+                  <DspSlider
+                    label="Threshold"
+                    min={-60}
+                    max={0}
+                    step={1}
+                    unit=" dB"
+                    value={micConfig.comp_threshold_db}
+                    defaultValue={MIC_DSP_DEFAULTS.comp_threshold_db}
+                    onChange={(v) => void setMicConfig({ comp_threshold_db: v })}
+                  />
+                  <DspSlider
+                    label="Ratio"
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    unit=":1"
+                    value={micConfig.comp_ratio}
+                    defaultValue={MIC_DSP_DEFAULTS.comp_ratio}
+                    onChange={(v) => void setMicConfig({ comp_ratio: v })}
+                  />
+                </>
+              )}
               <ToggleRow
                 icon="vertical_align_center"
                 title="Limiter"
-                sub="Hard ceiling at -1 dBFS — no clipping downstream"
+                sub="Hard ceiling — nothing clips downstream"
                 on={micConfig.limiter_enabled}
                 onToggle={() =>
                   void setMicConfig({ limiter_enabled: !micConfig.limiter_enabled })
                 }
               />
+              {micConfig.limiter_enabled && (
+                <DspSlider
+                  label="Ceiling"
+                  min={-12}
+                  max={0}
+                  step={0.5}
+                  unit=" dB"
+                  value={micConfig.limiter_ceiling_db}
+                  defaultValue={MIC_DSP_DEFAULTS.limiter_ceiling_db}
+                  onChange={(v) => void setMicConfig({ limiter_ceiling_db: v })}
+                />
+              )}
             </div>
           </>
         )}

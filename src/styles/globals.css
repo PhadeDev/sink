@@ -1384,3 +1384,39 @@ body,
   color: #fca5a5;
   font-size: var(--fs-meta);
 }
+
+/* DSP tuning sliders (mic processing card) */
+.dsp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 2px var(--sp-4) var(--sp-2) 64px;
+}
+.dsp-label {
+  width: 76px;
+  flex: 0 0 76px;
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+}
+.dsp-row .hs-track {
+  flex: 1;
+}
+.dsp-value {
+  width: 64px;
+  flex: 0 0 64px;
+  text-align: right;
+  font-size: var(--fs-caption);
+  color: var(--fg-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.dsp-default-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--fg-muted);
+  opacity: 0.55;
+  border-radius: 1px;
+  pointer-events: none;
+}

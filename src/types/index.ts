@@ -44,13 +44,27 @@ export interface MicConfig {
   enabled: boolean;
   /** node.name of the hardware mic (null = system default). */
   input_device: string | null;
+  /** What other apps list the processed mic as. */
+  output_label: string;
   /** 0–200; 100 = unity. */
   gain_percent: number;
   gate_enabled: boolean;
   comp_enabled: boolean;
   limiter_enabled: boolean;
   muted: boolean;
+  gate_threshold_db: number;
+  comp_threshold_db: number;
+  comp_ratio: number;
+  limiter_ceiling_db: number;
 }
+
+/** Default DSP values (markers on the tuning sliders). */
+export const MIC_DSP_DEFAULTS = {
+  gate_threshold_db: -40,
+  comp_threshold_db: -18,
+  comp_ratio: 3,
+  limiter_ceiling_db: -1,
+} as const;
 
 /** App history entry (mirrors Rust SeenApp). */
 export interface SeenApp {

@@ -14,6 +14,11 @@ pub struct DspSettings {
     /// Linear gain multiplier (UI percent / 100).
     pub gain: f32,
     pub muted: bool,
+    /// Tunable stage parameters (UI-exposed; time constants stay fixed).
+    pub gate_threshold_db: f32,
+    pub comp_threshold_db: f32,
+    pub comp_ratio: f32,
+    pub limiter_ceiling_db: f32,
 }
 
 impl Default for DspSettings {
@@ -24,26 +29,24 @@ impl Default for DspSettings {
             limiter_enabled: true,
             gain: 1.0,
             muted: false,
+            gate_threshold_db: -40.0,
+            comp_threshold_db: -18.0,
+            comp_ratio: 3.0,
+            limiter_ceiling_db: -1.0,
         }
     }
 }
 
-// Fixed, opinionated stage tuning (SPEC: chain is built-in, not a rack).
-// Values follow common voice-chain guidance (OBS noise-gate/compressor
-// starting points): gate threshold around -40 dB with a generous hold so
-// words aren't clipped, compressor 3:1 at -18 dB with a quick release.
-const GATE_THRESHOLD_DB: f32 = -40.0;
+// Fixed time constants (voice-chain guidance — OBS-style starting
+// points). Thresholds/ratio/ceiling are user-tunable via DspSettings.
 const GATE_ATTACK_MS: f32 = 5.0;
 const GATE_RELEASE_MS: f32 = 150.0;
 const GATE_HOLD_MS: f32 = 200.0;
 
-const COMP_THRESHOLD_DB: f32 = -18.0;
-const COMP_RATIO: f32 = 3.0;
 const COMP_ATTACK_MS: f32 = 6.0;
 const COMP_RELEASE_MS: f32 = 60.0;
 const COMP_MAKEUP_DB: f32 = 4.0;
 
-const LIMIT_CEILING_DB: f32 = -1.0;
 const LIMIT_RELEASE_MS: f32 = 60.0;
 
 fn db_to_linear(db: f32) -> f32 {
@@ -90,17 +93,17 @@ impl DspChain {
         }
 
         let sr = self.sample_rate;
-        let gate_thresh = db_to_linear(GATE_THRESHOLD_DB);
+        let gate_thresh = db_to_linear(s.gate_threshold_db);
         let gate_att = coeff(GATE_ATTACK_MS, sr);
         let gate_rel = coeff(GATE_RELEASE_MS, sr);
         let hold_samples = (GATE_HOLD_MS * 0.001 * sr) as u32;
 
-        let comp_thresh_db = COMP_THRESHOLD_DB;
+        let comp_thresh_db = s.comp_threshold_db;
         let comp_att = coeff(COMP_ATTACK_MS, sr);
         let comp_rel = coeff(COMP_RELEASE_MS, sr);
         let makeup = db_to_linear(COMP_MAKEUP_DB);
 
-        let ceiling = db_to_linear(LIMIT_CEILING_DB);
+        let ceiling = db_to_linear(s.limiter_ceiling_db);
         let limit_rel = coeff(LIMIT_RELEASE_MS, sr);
 
         for sample in samples.iter_mut() {
@@ -141,7 +144,7 @@ impl DspChain {
                 let env_db = 20.0 * self.comp_env.log10();
                 let over = env_db - comp_thresh_db;
                 if over > 0.0 {
-                    let reduction_db = over * (1.0 - 1.0 / COMP_RATIO);
+                    let reduction_db = over * (1.0 - 1.0 / s.comp_ratio.max(1.0));
                     x *= db_to_linear(-reduction_db);
                 }
                 x *= makeup;
@@ -179,7 +182,7 @@ mod tests {
             comp_enabled: comp,
             limiter_enabled: limit,
             gain,
-            muted: false,
+            ..DspSettings::default()
         }
     }
 

@@ -966,6 +966,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 let needs_rebuild = config.enabled
                     && s.mic_streams.is_some()
                     && prev.input_device != config.input_device;
+                let source_exists = s.node_by_name(MIC_NODE).is_some();
                 (needs_create, needs_destroy, needs_rebuild, source_exists)
             };
 
@@ -992,7 +993,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     &pw::properties::properties! {
                         "factory.name" => "support.null-audio-sink",
                         "node.name" => MIC_NODE,
-                        "node.description" => "Sink Mic",
+                        "node.description" => config.output_label.as_str(),
                         "media.class" => VIRTUAL_SOURCE_CLASS,
                         "audio.position" => "[ MONO ]",
                     },

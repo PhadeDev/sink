@@ -286,12 +286,11 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     if (!current) return;
     const config = { ...current, ...patch };
     set({ micConfig: config });
-    try {
-      await invoke("set_mic_config", { config });
-    } catch (e) {
+    // Debounced: slider drags and rename typing settle into one apply.
+    debouncedInvoke("micConfig", "set_mic_config", { config }, (e) => {
       set({ error: String(e) });
-      await get().fetchMic();
-    }
+      void get().fetchMic();
+    });
   },
 
   fetchProfiles: async () => {

@@ -239,18 +239,49 @@ pub struct OutputDevice {
     pub description: String,
 }
 
+fn default_mic_label() -> String {
+    "Sink Mic".to_string()
+}
+fn default_gate_threshold() -> f32 {
+    -40.0
+}
+fn default_comp_threshold() -> f32 {
+    -18.0
+}
+fn default_comp_ratio() -> f32 {
+    3.0
+}
+fn default_limiter_ceiling() -> f32 {
+    -1.0
+}
+
 /// Phase 3 mic chain configuration (persisted; applied live).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MicConfig {
     pub enabled: bool,
     /// node.name of the hardware mic to capture (None = system default).
     pub input_device: Option<String>,
+    /// What other apps list the processed mic as (node description).
+    #[serde(default = "default_mic_label")]
+    pub output_label: String,
     /// 0–200; 100 = unity.
     pub gain_percent: u8,
     pub gate_enabled: bool,
     pub comp_enabled: bool,
     pub limiter_enabled: bool,
     pub muted: bool,
+    /// Gate opens above this level (dBFS).
+    #[serde(default = "default_gate_threshold")]
+    pub gate_threshold_db: f32,
+    /// Compression starts above this level (dBFS).
+    #[serde(default = "default_comp_threshold")]
+    pub comp_threshold_db: f32,
+    /// Compression ratio (N:1).
+    #[serde(default = "default_comp_ratio")]
+    pub comp_ratio: f32,
+    /// Hard ceiling (dBFS).
+    #[serde(default = "default_limiter_ceiling")]
+    pub limiter_ceiling_db: f32,
 }
 
 impl Default for MicConfig {
@@ -258,11 +289,16 @@ impl Default for MicConfig {
         Self {
             enabled: false,
             input_device: None,
+            output_label: default_mic_label(),
             gain_percent: 100,
             gate_enabled: true,
             comp_enabled: true,
             limiter_enabled: true,
             muted: false,
+            gate_threshold_db: default_gate_threshold(),
+            comp_threshold_db: default_comp_threshold(),
+            comp_ratio: default_comp_ratio(),
+            limiter_ceiling_db: default_limiter_ceiling(),
         }
     }
 }

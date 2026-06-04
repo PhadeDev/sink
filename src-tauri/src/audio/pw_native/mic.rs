@@ -31,6 +31,10 @@ pub struct MicParams {
     comp: AtomicBool,
     limiter: AtomicBool,
     muted: AtomicBool,
+    gate_threshold_bits: AtomicU32,
+    comp_threshold_bits: AtomicU32,
+    comp_ratio_bits: AtomicU32,
+    limiter_ceiling_bits: AtomicU32,
 }
 
 impl MicParams {
@@ -41,6 +45,10 @@ impl MicParams {
             comp: AtomicBool::new(true),
             limiter: AtomicBool::new(true),
             muted: AtomicBool::new(false),
+            gate_threshold_bits: AtomicU32::new((-40.0f32).to_bits()),
+            comp_threshold_bits: AtomicU32::new((-18.0f32).to_bits()),
+            comp_ratio_bits: AtomicU32::new(3.0f32.to_bits()),
+            limiter_ceiling_bits: AtomicU32::new((-1.0f32).to_bits()),
         };
         p.apply(config);
         p
@@ -53,6 +61,14 @@ impl MicParams {
         self.comp.store(config.comp_enabled, Ordering::Relaxed);
         self.limiter.store(config.limiter_enabled, Ordering::Relaxed);
         self.muted.store(config.muted, Ordering::Relaxed);
+        self.gate_threshold_bits
+            .store(config.gate_threshold_db.to_bits(), Ordering::Relaxed);
+        self.comp_threshold_bits
+            .store(config.comp_threshold_db.to_bits(), Ordering::Relaxed);
+        self.comp_ratio_bits
+            .store(config.comp_ratio.to_bits(), Ordering::Relaxed);
+        self.limiter_ceiling_bits
+            .store(config.limiter_ceiling_db.to_bits(), Ordering::Relaxed);
     }
 
     fn settings(&self) -> DspSettings {
@@ -62,6 +78,10 @@ impl MicParams {
             limiter_enabled: self.limiter.load(Ordering::Relaxed),
             gain: f32::from_bits(self.gain_bits.load(Ordering::Relaxed)),
             muted: self.muted.load(Ordering::Relaxed),
+            gate_threshold_db: f32::from_bits(self.gate_threshold_bits.load(Ordering::Relaxed)),
+            comp_threshold_db: f32::from_bits(self.comp_threshold_bits.load(Ordering::Relaxed)),
+            comp_ratio: f32::from_bits(self.comp_ratio_bits.load(Ordering::Relaxed)),
+            limiter_ceiling_db: f32::from_bits(self.limiter_ceiling_bits.load(Ordering::Relaxed)),
         }
     }
 }
