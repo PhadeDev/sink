@@ -135,8 +135,14 @@ pub fn init_virtual_devices(
     let (outputs, mic, buses) = {
         let mut mixer = state.lock_mixer()?;
         mixer.init_defaults();
+        // The master mix always carries the full channel set.
+        let names: Vec<String> = defs.channels.iter().map(|c| c.name.clone()).collect();
+        mixer.buses.sync_master(&names);
         (mixer.outputs.clone(), mixer.mic.clone(), mixer.buses.clone())
     };
+    if let Err(e) = buses.save() {
+        eprintln!("sink: saving mixes failed: {e}");
+    }
 
     // Wire every channel to its saved output (or the system default) so
     // channels are audible from the start.

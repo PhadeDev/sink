@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useMixerStore } from "../../store/mixer";
+import { MASTER_BUS } from "../../types";
 import { Ms, ICON_CHOICES } from "../Icons";
 import { Modal } from "../Modal";
 import { ChannelStrip } from "./ChannelStrip";
@@ -146,18 +147,17 @@ export function MixerBoard() {
             icon="podcasts"
             label="Mixes"
             count={`${buses.length}`}
-            hint="Mixes: combine channels into capturable sources for OBS/recorders — what your audience hears."
-            onAdd={buses.length < MAX_BUSES ? () => setAddingMix(true) : undefined}
+            hint="Mixes: capturable sources for OBS/recorders. Master carries everything; add mixes for subsets."
+            onAdd={
+              buses.filter((b) => b.name !== MASTER_BUS).length < MAX_BUSES
+                ? () => setAddingMix(true)
+                : undefined
+            }
             addTitle="Add a mix (capturable source for OBS/recorders)"
           >
             {buses.map((bus) => (
               <BusStrip key={bus.name} bus={bus} />
             ))}
-            {buses.length === 0 && (
-              <div className="empty-hint" style={{ alignSelf: "center", padding: "var(--sp-4)" }}>
-                No mixes — add one to record with OBS.
-              </div>
-            )}
           </MixGroup>
         </div>
       </div>

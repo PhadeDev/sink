@@ -119,19 +119,11 @@ pub fn load_profile(
     }
 
     // ---- mix bus reconciliation ----
-    // Old profiles (pre-buses) fall back to a Stream Mix fed by the
-    // channels' legacy stream_mix flags.
     let mut target_buses = profile.buses.clone();
-    if target_buses == crate::persistence::buses::Buses::default()
-        && target_buses.buses[0].channels.is_empty()
-    {
-        target_buses.buses[0].channels = profile
-            .channels
-            .iter()
-            .filter(|c| c.stream_mix)
-            .map(|c| c.name.clone())
-            .collect();
-    }
+    // The master mix always exists and carries the profile's full channel
+    // set (this also upgrades old profiles saved before the master model).
+    let names: Vec<String> = profile.channels.iter().map(|c| c.name.clone()).collect();
+    target_buses.sync_master(&names);
     let current_buses = {
         let mixer = state.lock_mixer()?;
         mixer.buses.clone()

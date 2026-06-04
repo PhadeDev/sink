@@ -38,16 +38,28 @@ pub fn add_channel(
     }
 
     defs.save().map_err(|e| e.to_string())?;
-    let mut mixer = state.lock_mixer()?;
-    mixer.channels.push(VirtualSink {
-        name: def.name,
-        label: def.label,
-        icon: def.icon,
-        volume_percent: 100,
-        muted: false,
-        stream_mix: def.stream_mix,
-    });
-    crate::commands::profiles::autosave_active(&mixer);
+    let buses = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.channels.push(VirtualSink {
+            name: def.name,
+            label: def.label,
+            icon: def.icon,
+            volume_percent: 100,
+            muted: false,
+            stream_mix: def.stream_mix,
+        });
+        // The new channel joins the master mix automatically.
+        let names: Vec<String> = mixer.channels.iter().map(|c| c.name.clone()).collect();
+        mixer.buses.sync_master(&names);
+        crate::commands::profiles::autosave_active(&mixer);
+        mixer.buses.clone()
+    };
+    if let Some(master) = buses.get(crate::persistence::buses::DEFAULT_BUS_NODE) {
+        if let Err(e) = state.backend.set_bus_members(&master.name, &master.channels) {
+            eprintln!("sink: master mix membership failed: {e}");
+        }
+    }
+    buses.save().map_err(|e| e.to_string())?;
     Ok(())
 }
 

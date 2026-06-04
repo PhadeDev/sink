@@ -16,6 +16,12 @@ pub fn is_bus_name(name: &str) -> bool {
     name == DEFAULT_BUS_NODE || name.starts_with(BUS_PREFIX)
 }
 
+/// True if `name` is the always-on master mix: it carries every channel,
+/// can't be deleted, and its membership is managed automatically.
+pub fn is_master(name: &str) -> bool {
+    name == DEFAULT_BUS_NODE
+}
+
 /// One user-defined mix: a capturable virtual source carrying the chosen
 /// channels. The label is what recorders (OBS etc.) display.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -39,7 +45,7 @@ impl Default for Buses {
         Self {
             buses: vec![BusDef {
                 name: DEFAULT_BUS_NODE.to_string(),
-                label: "Stream Mix".to_string(),
+                label: "Master Mix".to_string(),
                 channels: Vec::new(),
             }],
         }
@@ -109,12 +115,28 @@ impl Buses {
         self.buses.iter().find(|b| b.name == name)
     }
 
+    /// Ensure the master mix exists, sits first, and carries every channel.
+    /// Called wherever the channel set changes (init, add, profile load).
+    pub fn sync_master(&mut self, channels: &[String]) {
+        let mut def = match self.buses.iter().position(|b| is_master(&b.name)) {
+            Some(i) => self.buses.remove(i),
+            None => BusDef {
+                name: DEFAULT_BUS_NODE.to_string(),
+                label: "Master Mix".to_string(),
+                channels: Vec::new(),
+            },
+        };
+        def.channels = channels.to_vec();
+        self.buses.insert(0, def);
+    }
+
     pub fn add(&mut self, label: &str) -> Result<BusDef, SinkError> {
         let label = label.trim();
         if label.is_empty() || label.len() > 24 {
             return Err(SinkError::Config("mix label must be 1–24 characters".into()));
         }
-        if self.buses.len() >= MAX_BUSES {
+        // The master mix doesn't count against the user's mixes.
+        if self.buses.iter().filter(|b| !is_master(&b.name)).count() >= MAX_BUSES {
             return Err(SinkError::Config(format!(
                 "at most {MAX_BUSES} mixes are supported"
             )));
@@ -150,6 +172,9 @@ impl Buses {
     }
 
     pub fn remove(&mut self, name: &str) -> Result<(), SinkError> {
+        if is_master(name) {
+            return Err(SinkError::Config("the master mix can't be deleted".into()));
+        }
         let before = self.buses.len();
         self.buses.retain(|b| b.name != name);
         if self.buses.len() == before {
@@ -159,6 +184,11 @@ impl Buses {
     }
 
     pub fn set_members(&mut self, name: &str, channels: Vec<String>) -> Result<(), SinkError> {
+        if is_master(name) {
+            return Err(SinkError::Config(
+                "the master mix always carries every channel".into(),
+            ));
+        }
         let def = self
             .buses
             .iter_mut()
@@ -181,11 +211,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_is_stream_mix() {
+    fn default_is_master_mix() {
         let b = Buses::default();
         assert_eq!(b.buses.len(), 1);
         assert_eq!(b.buses[0].name, "sink_stream");
-        assert_eq!(b.buses[0].label, "Stream Mix");
+        assert_eq!(b.buses[0].label, "Master Mix");
+        assert!(is_master(&b.buses[0].name));
     }
 
     #[test]
@@ -203,16 +234,41 @@ mod tests {
     #[test]
     fn membership_and_channel_removal() {
         let mut b = Buses::default();
-        b.set_members("sink_stream", vec!["sink_game".into(), "sink_chat".into()])
+        let mix = b.add("Voice Only").expect("adds");
+        b.set_members(&mix.name, vec!["sink_game".into(), "sink_chat".into()])
             .expect("sets");
         b.remove_channel("sink_chat");
-        assert_eq!(b.get("sink_stream").expect("bus").channels, vec!["sink_game"]);
+        assert_eq!(b.get(&mix.name).expect("bus").channels, vec!["sink_game"]);
     }
 
     #[test]
-    fn all_buses_are_deletable() {
+    fn master_is_protected_and_auto_synced() {
         let mut b = Buses::default();
-        b.remove("sink_stream").expect("removes default too");
-        assert!(b.buses.is_empty());
+        assert!(b.remove("sink_stream").is_err());
+        assert!(b.set_members("sink_stream", vec!["sink_game".into()]).is_err());
+        // Renaming is allowed — recorders see the label.
+        b.rename("sink_stream", "Everything").expect("renames");
+
+        b.sync_master(&["sink_game".into(), "sink_chat".into()]);
+        let master = b.get("sink_stream").expect("master");
+        assert_eq!(master.label, "Everything");
+        assert_eq!(master.channels, vec!["sink_game", "sink_chat"]);
+        assert_eq!(b.buses[0].name, "sink_stream");
+
+        // Recreated (with the default label) if it ever goes missing.
+        b.buses.clear();
+        b.sync_master(&["sink_game".into()]);
+        assert_eq!(b.buses[0].label, "Master Mix");
+        assert_eq!(b.buses[0].channels, vec!["sink_game"]);
+    }
+
+    #[test]
+    fn master_does_not_count_toward_limit() {
+        let mut b = Buses::default();
+        for i in 0..MAX_BUSES {
+            b.add(&format!("Mix {i}")).expect("adds user mix");
+        }
+        assert!(b.add("One Too Many").is_err());
+        assert_eq!(b.buses.len(), MAX_BUSES + 1); // master + user mixes
     }
 }

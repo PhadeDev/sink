@@ -101,3 +101,5 @@ export const MAX_VOLUME = 150;
 export const MAX_MIC_GAIN = 200;
 /** Levels key for the mic chain. */
 export const MIC_LEVEL_KEY = "sink_mic";
+/** Node name of the always-on master mix (carries every channel). */
+export const MASTER_BUS = "sink_stream";
