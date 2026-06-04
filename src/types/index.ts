@@ -42,6 +42,12 @@ export interface MicConfig {
   muted: boolean;
 }
 
+/** Profile listing entry (Phase 5: trigger_device auto-loads the profile). */
+export interface ProfileInfo {
+  name: string;
+  trigger_device: string | null;
+}
+
 /** Sent as sink_name to unassign a stream (backend moves it to the default sink). */
 export const UNASSIGNED = "";
 

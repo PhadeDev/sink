@@ -18,6 +18,17 @@ pub struct Profile {
     /// Added in Phase 4; default keeps older profile files loadable.
     #[serde(default)]
     pub outputs: crate::persistence::outputs::ChannelOutputs,
+    /// Phase 5: output device (node.name) whose appearance auto-loads this
+    /// profile — Sonar-style hardware profile switching.
+    #[serde(default)]
+    pub trigger_device: Option<String>,
+}
+
+/// Listing entry: name plus trigger metadata for the UI/auto-switcher.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfileInfo {
+    pub name: String,
+    pub trigger_device: Option<String>,
 }
 
 fn profiles_dir() -> Result<PathBuf, SinkError> {
@@ -50,24 +61,38 @@ fn profile_path(name: &str) -> Result<PathBuf, SinkError> {
     Ok(profiles_dir()?.join(format!("{}.json", sanitize_name(name)?)))
 }
 
-pub fn list() -> Result<Vec<String>, SinkError> {
+pub fn list() -> Result<Vec<ProfileInfo>, SinkError> {
     let dir = profiles_dir()?;
-    let mut names = Vec::new();
+    let mut infos = Vec::new();
     let entries = match fs::read_dir(&dir) {
         Ok(e) => e,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(names),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(infos),
         Err(e) => return Err(e.into()),
     };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().is_some_and(|ext| ext == "json") {
             if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                names.push(stem.to_string());
+                let trigger_device = fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|raw| serde_json::from_str::<Profile>(&raw).ok())
+                    .and_then(|p| p.trigger_device);
+                infos.push(ProfileInfo {
+                    name: stem.to_string(),
+                    trigger_device,
+                });
             }
         }
     }
-    names.sort();
-    Ok(names)
+    infos.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(infos)
+}
+
+/// Set or clear the trigger device on an existing profile file.
+pub fn set_trigger(name: &str, trigger_device: Option<String>) -> Result<(), SinkError> {
+    let mut profile = load(name)?;
+    profile.trigger_device = trigger_device;
+    save(&profile)
 }
 
 pub fn save(profile: &Profile) -> Result<(), SinkError> {

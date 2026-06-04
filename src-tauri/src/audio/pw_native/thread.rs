@@ -32,6 +32,9 @@ const VIRTUAL_SOURCE_CLASS: &str = "Audio/Source/Virtual";
 pub const INTERNAL_PREFIX: &str = "sink-internal-";
 /// node.name prefix of our meter capture streams.
 pub const METER_PREFIX: &str = "sink-internal-meter-";
+/// node.name of the Stream Mix virtual source (Phase 5): receives a copy of
+/// every channel so OBS can capture the whole mix as one source.
+pub const STREAM_MIX_NODE: &str = "sink_stream";
 
 type Reply<T> = mpsc::Sender<Result<T, SinkError>>;
 
@@ -102,6 +105,23 @@ struct State {
     mic_source: Option<Node>,
     mic_streams: Option<MicStreams>,
     levels: Option<Arc<LevelStore>>,
+    /// Phase 5 Stream Mix virtual source proxy.
+    stream_mix_source: Option<Node>,
+    /// Channel sink name -> links into the Stream Mix source.
+    stream_links: HashMap<String, Vec<(u32, u32, pw::link::Link)>>,
+    /// Links from the mic playback stream into the virtual mic.
+    mic_links: Vec<(u32, u32, pw::link::Link)>,
+}
+
+impl State {
+    /// Live node id of the mic playback stream. Resolved lazily — the id
+    /// is only valid once the server has created the stream's node.
+    fn mic_playback_node(&self) -> Option<u32> {
+        self.mic_streams
+            .as_ref()
+            .map(|m| m.playback_node_id())
+            .filter(|id| *id != u32::MAX)
+    }
 }
 
 impl State {
@@ -232,26 +252,42 @@ fn on_global(
                 direction: props.get("port.direction").unwrap_or_default().to_string(),
                 channel: props.get("audio.channel").map(str::to_string),
             };
-            {
+            let relevant_links = {
                 let mut s = state.borrow_mut();
                 s.ports.insert(global.id, entry);
-                // Only sink-ish nodes matter for loopback wiring.
-                let relevant = s
-                    .nodes
+                s.nodes
                     .get(&node_id)
-                    .is_some_and(|n| n.media_class == SINK_CLASS);
-                if !relevant {
-                    return;
-                }
+                    .is_some_and(|n| n.media_class == SINK_CLASS)
+            };
+            if relevant_links {
+                ensure_all_links(state);
             }
-            ensure_all_links(state);
+            // Mic wiring depends on ports of untracked stream nodes, so
+            // reconcile on every port event (no-op until both ends exist).
+            ensure_mic_links(state);
         }
         ObjectType::Link => {
             let Some(props) = global.props else { return };
             let out = props.get("link.output.node").and_then(|v| v.parse().ok());
             let inp = props.get("link.input.node").and_then(|v| v.parse().ok());
             if let (Some(out), Some(inp)) = (out, inp) {
-                state.borrow_mut().links.insert(global.id, (out, inp));
+                let police = {
+                    let mut s = state.borrow_mut();
+                    s.links.insert(global.id, (out, inp));
+                    // Police the mic playback stream: if anything (e.g. a
+                    // session-manager fallback) links it somewhere other
+                    // than the virtual mic, destroy that link — mic audio
+                    // must never leak into the speakers.
+                    match (s.mic_playback_node(), s.node_by_name(MIC_NODE)) {
+                        (Some(playback), mic) if out == playback => {
+                            mic.map(|n| n.id) != Some(inp)
+                        }
+                        _ => false,
+                    }
+                };
+                if police {
+                    let _ = registry.destroy_global(global.id);
+                }
             }
         }
         ObjectType::Metadata => {
@@ -408,9 +444,9 @@ fn on_node(
     }
 }
 
-/// (Re)build the mic capture/DSP/playback streams against the virtual
-/// source node with global id `source_id`.
-fn build_mic_streams(state: &Rc<RefCell<State>>, source_id: u32) {
+/// (Re)build the mic capture/DSP/playback streams. The virtual source is
+/// addressed by name via target.object, so no id is needed.
+fn build_mic_streams(state: &Rc<RefCell<State>>, _source_id: u32) {
     let Some(core) = CORE.with(|c| c.borrow().clone()) else {
         return;
     };
@@ -418,121 +454,174 @@ fn build_mic_streams(state: &Rc<RefCell<State>>, source_id: u32) {
     if !s.mic_config.enabled {
         return;
     }
-    let mic_target = s
-        .mic_config
-        .input_device
-        .as_deref()
-        .and_then(|name| s.node_by_name(name))
-        .map(|n| n.id);
+    let mic_target = s.mic_config.input_device.clone();
     let Some(levels) = s.levels.clone() else { return };
-    match MicStreams::new(&core, &s.mic_config, mic_target, source_id, levels) {
+    match MicStreams::new(&core, &s.mic_config, mic_target.as_deref(), levels) {
         Ok(streams) => {
+            s.mic_links.clear();
             s.mic_streams = Some(streams);
         }
         Err(e) => eprintln!("sink: mic chain failed: {e}"),
     }
+    drop(s);
+    ensure_mic_links(state);
 }
 
-/// Reconcile loopback links for every virtual channel: each channel's
-/// monitor ports are linked to its chosen output device's playback ports
-/// (or the system default when unset / the chosen device is gone).
+/// Link the mic playback stream's output ports into the virtual mic.
+/// Called whenever ports appear; idempotent.
+fn ensure_mic_links(state: &Rc<RefCell<State>>) {
+    let Some(core) = CORE.with(|c| c.borrow().clone()) else {
+        return;
+    };
+    let mut s = state.borrow_mut();
+    let (Some(playback_id), Some(mic_node)) = (
+        s.mic_playback_node(),
+        s.node_by_name(MIC_NODE).map(|n| n.id),
+    ) else {
+        return;
+    };
+    let pairs = desired_pairs(&s, playback_id, mic_node);
+    let current: Vec<(u32, u32)> = s.mic_links.iter().map(|(o, i, _)| (*o, *i)).collect();
+    if current == pairs || pairs.is_empty() {
+        return;
+    }
+    s.mic_links.clear();
+    s.mic_links = create_links(&core, "mic", playback_id, mic_node, &pairs);
+}
+
+/// Compute monitor→input port pairs from `channel_id`'s output ports to
+/// `target_id`'s input ports. Pairs by audio.channel where possible, with
+/// an index-wrap fallback for mono/odd channel maps.
+fn desired_pairs(s: &State, channel_id: u32, target_id: u32) -> Vec<(u32, u32)> {
+    if channel_id == target_id {
+        return Vec::new();
+    }
+    let mut monitors: Vec<&PortEntry> = s
+        .ports
+        .values()
+        .filter(|p| p.node_id == channel_id && p.direction == "out")
+        .collect();
+    let mut inputs: Vec<&PortEntry> = s
+        .ports
+        .values()
+        .filter(|p| p.node_id == target_id && p.direction == "in")
+        .collect();
+    monitors.sort_by_key(|p| p.id);
+    inputs.sort_by_key(|p| p.id);
+    if monitors.is_empty() || inputs.is_empty() {
+        return Vec::new();
+    }
+    monitors
+        .iter()
+        .enumerate()
+        .filter_map(|(i, m)| {
+            let by_channel = m.channel.as_ref().and_then(|ch| {
+                inputs
+                    .iter()
+                    .find(|p| p.channel.as_ref() == Some(ch))
+                    .copied()
+            });
+            let input = by_channel.or_else(|| inputs.get(i % inputs.len()).copied())?;
+            Some((m.id, input.id))
+        })
+        .collect()
+}
+
+/// Create link objects for `pairs` between two nodes; returns the proxies.
+fn create_links(
+    core: &CoreRc,
+    sink_name: &str,
+    out_node: u32,
+    in_node: u32,
+    pairs: &[(u32, u32)],
+) -> Vec<(u32, u32, pw::link::Link)> {
+    let mut created = Vec::new();
+    for (monitor_port, input_port) in pairs {
+        match core.create_object::<pw::link::Link>(
+            "link-factory",
+            &pw::properties::properties! {
+                "link.output.node" => out_node.to_string(),
+                "link.output.port" => monitor_port.to_string(),
+                "link.input.node" => in_node.to_string(),
+                "link.input.port" => input_port.to_string(),
+            },
+        ) {
+            Ok(link) => created.push((*monitor_port, *input_port, link)),
+            Err(e) => eprintln!("sink: link {sink_name} failed: {e}"),
+        }
+    }
+    created
+}
+
+/// Reconcile loopback links for every virtual channel:
+/// - monitor → chosen output device (or the system default when unset /
+///   the chosen device is gone — automatic failover)
+/// - monitor → Stream Mix source (Phase 5, for OBS capture)
+///
 /// Idempotent — existing correct links are left untouched.
 fn ensure_all_links(state: &Rc<RefCell<State>>) {
     let Some(core) = CORE.with(|c| c.borrow().clone()) else {
         return;
     };
     let mut s = state.borrow_mut();
+    let stream_mix_id = s.node_by_name(STREAM_MIX_NODE).map(|n| n.id);
 
     for (sink_name, _) in crate::audio::types::VIRTUAL_SINKS {
-        // Resolve the desired output: explicit choice if its node exists,
-        // otherwise the system default (automatic failover).
-        let explicit = s.channel_outputs.get(sink_name).cloned().flatten();
-        let target_name = match explicit {
-            Some(name) if s.node_by_name(&name).is_some() => Some(name),
-            _ => s.default_sink_name.clone(),
+        let channel_id = match s.node_by_name(sink_name) {
+            Some(n) => n.id,
+            None => continue,
         };
 
-        let pairs: Vec<(u32, u32)> = (|| {
-            let target_name = target_name?;
-            let channel_node = s.node_by_name(sink_name)?;
-            let target_node = s.node_by_name(&target_name)?;
-            if channel_node.id == target_node.id {
-                return None;
+        // ---- output device links ----
+        let explicit = s.channel_outputs.get(sink_name).cloned().flatten();
+        let target_id = match explicit {
+            Some(name) if s.node_by_name(&name).is_some() => {
+                s.node_by_name(&name).map(|n| n.id)
             }
-            let mut monitors: Vec<&PortEntry> = s
-                .ports
-                .values()
-                .filter(|p| p.node_id == channel_node.id && p.direction == "out")
-                .collect();
-            let mut inputs: Vec<&PortEntry> = s
-                .ports
-                .values()
-                .filter(|p| p.node_id == target_node.id && p.direction == "in")
-                .collect();
-            monitors.sort_by_key(|p| p.id);
-            inputs.sort_by_key(|p| p.id);
-            if monitors.is_empty() || inputs.is_empty() {
-                return None;
-            }
-            // Pair by audio.channel where possible, else wrap by index
-            // (covers mono and odd channel maps).
-            let pairs = monitors
-                .iter()
-                .enumerate()
-                .filter_map(|(i, m)| {
-                    let by_channel = m.channel.as_ref().and_then(|ch| {
-                        inputs
-                            .iter()
-                            .find(|p| p.channel.as_ref() == Some(ch))
-                            .copied()
-                    });
-                    // Plain index fallback covers mono and odd channel maps.
-                    let input = by_channel.or_else(|| inputs.get(i % inputs.len()).copied())?;
-                    Some((m.id, input.id))
-                })
-                .collect::<Vec<_>>();
-            Some(pairs)
-        })()
-        .unwrap_or_default();
-
+            _ => s
+                .default_sink_name
+                .clone()
+                .and_then(|name| s.node_by_name(&name))
+                .map(|n| n.id),
+        };
+        let pairs = target_id
+            .map(|t| desired_pairs(&s, channel_id, t))
+            .unwrap_or_default();
         let current: Vec<(u32, u32)> = s
             .channel_links
             .get(sink_name)
             .map(|links| links.iter().map(|(o, i, _)| (*o, *i)).collect())
             .unwrap_or_default();
-        if current == pairs {
-            continue;
-        }
-
-        // Drop stale links (proxies destroy the server objects), then build
-        // the desired set.
-        s.channel_links.remove(sink_name);
-        let mut created = Vec::new();
-        let (out_node, in_node) = match (
-            s.node_by_name(sink_name).map(|n| n.id),
-            pairs.first().and_then(|(_, input)| {
-                s.ports.get(input).map(|p| p.node_id)
-            }),
-        ) {
-            (Some(o), Some(i)) => (o, i),
-            _ => continue,
-        };
-        for (monitor_port, input_port) in &pairs {
-            match core.create_object::<pw::link::Link>(
-                "link-factory",
-                &pw::properties::properties! {
-                    "link.output.node" => out_node.to_string(),
-                    "link.output.port" => monitor_port.to_string(),
-                    "link.input.node" => in_node.to_string(),
-                    "link.input.port" => input_port.to_string(),
-                },
-            ) {
-                Ok(link) => created.push((*monitor_port, *input_port, link)),
-                Err(e) => eprintln!("sink: link {sink_name} failed: {e}"),
+        if current != pairs {
+            s.channel_links.remove(sink_name);
+            if let Some(in_node) = pairs
+                .first()
+                .and_then(|(_, input)| s.ports.get(input).map(|p| p.node_id))
+            {
+                let created = create_links(&core, sink_name, channel_id, in_node, &pairs);
+                if !created.is_empty() {
+                    s.channel_links.insert(sink_name.to_string(), created);
+                }
             }
         }
-        if !created.is_empty() {
-            s.channel_links.insert(sink_name.to_string(), created);
+
+        // ---- stream mix links ----
+        let mix_pairs = stream_mix_id
+            .map(|t| desired_pairs(&s, channel_id, t))
+            .unwrap_or_default();
+        let mix_current: Vec<(u32, u32)> = s
+            .stream_links
+            .get(sink_name)
+            .map(|links| links.iter().map(|(o, i, _)| (*o, *i)).collect())
+            .unwrap_or_default();
+        if mix_current != mix_pairs {
+            s.stream_links.remove(sink_name);
+            if let Some(mix_id) = stream_mix_id {
+                let created = create_links(&core, sink_name, channel_id, mix_id, &mix_pairs);
+                if !created.is_empty() {
+                    s.stream_links.insert(sink_name.to_string(), created);
+                }
+            }
         }
     }
 }
@@ -576,6 +665,24 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 }
                 Err(e) => {
                     let _ = reply.send(Err(SinkError::Config(format!("create sink: {e}"))));
+                    return;
+                }
+            }
+
+            // Phase 5: the Stream Mix source rides along with the channels.
+            if s.stream_mix_source.is_none() && s.node_by_name(STREAM_MIX_NODE).is_none() {
+                match core.create_object::<Node>(
+                    "adapter",
+                    &pw::properties::properties! {
+                        "factory.name" => "support.null-audio-sink",
+                        "node.name" => STREAM_MIX_NODE,
+                        "node.description" => "Sink Stream Mix",
+                        "media.class" => VIRTUAL_SOURCE_CLASS,
+                        "audio.position" => "[ FL FR ]",
+                    },
+                ) {
+                    Ok(proxy) => s.stream_mix_source = Some(proxy),
+                    Err(e) => eprintln!("sink: stream mix source failed: {e}"),
                 }
             }
         }
@@ -583,6 +690,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             let mut s = state.borrow_mut();
             s.meters.remove(&name);
             s.channel_links.remove(&name);
+            s.stream_links.remove(&name);
             if let Some(proxy) = s.owned_sinks.remove(&name) {
                 match CORE.with(|c| c.borrow().clone()) {
                     Some(core) => {
@@ -695,6 +803,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             if needs_destroy {
                 let mut s = state.borrow_mut();
                 s.mic_streams = None;
+                s.mic_links.clear();
                 if let Some(proxy) = s.mic_source.take() {
                     if let Some(core) = CORE.with(|c| c.borrow().clone()) {
                         let _ = core.destroy_object(proxy);
@@ -752,9 +861,11 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 .nodes
                 .values()
                 .filter(|n| {
+                    let name = n.props.get("node.name").map(String::as_str);
                     n.media_class == SOURCE_CLASS
                         || (n.media_class == VIRTUAL_SOURCE_CLASS
-                            && n.props.get("node.name").map(String::as_str) != Some(MIC_NODE))
+                            && name != Some(MIC_NODE)
+                            && name != Some(STREAM_MIX_NODE))
                 })
                 .map(|n| OutputDevice {
                     index: n.id,

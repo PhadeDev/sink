@@ -774,6 +774,43 @@ body,
   font-variant-numeric: tabular-nums;
 }
 
+/* ChatMix balance slider */
+.chatmix {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.chatmix-label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--fg-muted);
+}
+.chatmix-track {
+  position: relative;
+  width: 160px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--bg-active) 50%,
+    var(--online) 100%
+  );
+  cursor: pointer;
+}
+.chatmix-center {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--fg-muted);
+  border-radius: 1px;
+  opacity: 0.6;
+}
+
 /* toggle switch */
 .toggle {
   width: 38px;
@@ -908,6 +945,18 @@ body,
 .select:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* profile trigger sub-panel */
+.trigger-panel {
+  margin: 2px 0 var(--sp-2) var(--sp-6);
+  padding-left: var(--sp-2);
+  border-left: 2px solid var(--border);
+}
+.trigger-hint {
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+  padding: var(--sp-1) var(--sp-3);
 }
 
 .scrim {

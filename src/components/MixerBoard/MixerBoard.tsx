@@ -1,5 +1,6 @@
 import { useMixerStore } from "../../store/mixer";
 import { ChannelStrip } from "./ChannelStrip";
+import { ChatMix } from "./ChatMix";
 import { MicStrip } from "./MicStrip";
 import { OutputSelect } from "./OutputSelect";
 
@@ -45,6 +46,8 @@ export function MixerBoard() {
             onChange={(o) => void setAllOutputs(o)}
           />
         </div>
+        <div style={{ flex: 1 }} />
+        <ChatMix />
       </div>
       <div className="screen-scroll" style={{ padding: 0 }}>
         <div className="strips">

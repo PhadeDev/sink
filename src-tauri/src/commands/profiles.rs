@@ -1,14 +1,22 @@
 use tauri::State;
 
-use crate::persistence::profiles::{self, Profile};
+use crate::persistence::profiles::{self, Profile, ProfileInfo};
 use crate::persistence::wireplumber;
 use crate::state::AppState;
 
 const LOCK_ERR: &str = "mixer state lock poisoned";
 
 #[tauri::command]
-pub fn list_profiles() -> Result<Vec<String>, String> {
+pub fn list_profiles() -> Result<Vec<ProfileInfo>, String> {
     profiles::list().map_err(|e| e.to_string())
+}
+
+/// Bind (or clear, with empty string) an output device that auto-loads
+/// this profile when it appears.
+#[tauri::command]
+pub fn set_profile_trigger(name: String, device: String) -> Result<(), String> {
+    let trigger = if device.is_empty() { None } else { Some(device) };
+    profiles::set_trigger(&name, trigger).map_err(|e| e.to_string())
 }
 
 /// Snapshot the current mixer state (channels + assignments) under `name`.
@@ -22,7 +30,17 @@ pub fn save_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
             channels: mixer.channels.clone(),
             assignments: mixer.assignments.clone(),
             outputs: mixer.outputs.clone(),
+            // Preserved separately via set_profile_trigger when re-saving.
+            trigger_device: None,
         }
+    };
+    // Re-saving an existing profile keeps its trigger binding.
+    let trigger = profiles::load(&profile.name)
+        .ok()
+        .and_then(|p| p.trigger_device);
+    let profile = Profile {
+        trigger_device: trigger,
+        ..profile
     };
     profiles::save(&profile).map_err(|e| e.to_string())
 }

@@ -81,9 +81,18 @@ struct PlaybackCtx {
 pub struct MicStreams {
     _capture: pw::stream::StreamRc,
     _capture_listener: pw::stream::StreamListener<CaptureCtx>,
-    _playback: pw::stream::StreamRc,
+    playback: pw::stream::StreamRc,
     _playback_listener: pw::stream::StreamListener<PlaybackCtx>,
     pub params: Arc<MicParams>,
+}
+
+impl MicStreams {
+    /// Node id of the playback stream — the loop links its output ports to
+    /// the virtual mic itself (WirePlumber 0.5 does not reliably honor
+    /// target.object for playback→virtual-source routing).
+    pub fn playback_node_id(&self) -> u32 {
+        self.playback.node_id()
+    }
 }
 
 /// Mono F32 format pod for stream negotiation.
@@ -105,14 +114,14 @@ fn mono_f32_format() -> Result<Vec<u8>, SinkError> {
 }
 
 impl MicStreams {
-    /// Build both streams. `mic_target` is the global id of the hardware
-    /// mic to capture (None = system default source); `source_target` is
-    /// the global id of the virtual source node to feed.
+    /// Build both streams. `mic_target` is the node.name of the hardware
+    /// mic to capture (None = system default source). Targets are set via
+    /// the `target.object` property — the connect-id parameter is
+    /// deprecated and WirePlumber 0.5 ignores it.
     pub fn new(
         core: &pw::core::CoreRc,
         config: &MicConfig,
-        mic_target: Option<u32>,
-        source_target: u32,
+        mic_target: Option<&str>,
         levels: Arc<LevelStore>,
     ) -> Result<Self, SinkError> {
         let err = |stage: &str, e: pw::Error| SinkError::Config(format!("mic {stage}: {e}"));
@@ -121,17 +130,17 @@ impl MicStreams {
         let ring = Arc::new(Ring::new(4096));
 
         // ---- capture: hardware mic -> DSP -> ring ----
-        let capture = pw::stream::StreamRc::new(
-            core.clone(),
-            MIC_CAPTURE_NAME,
-            pw::properties::properties! {
-                "media.type" => "Audio",
-                "media.category" => "Capture",
-                "node.name" => MIC_CAPTURE_NAME,
-                "node.passive" => "true",
-            },
-        )
-        .map_err(|e| err("capture stream", e))?;
+        let mut capture_props = pw::properties::properties! {
+            "media.type" => "Audio",
+            "media.category" => "Capture",
+            "node.name" => MIC_CAPTURE_NAME,
+            "node.passive" => "true",
+        };
+        if let Some(target) = mic_target {
+            capture_props.insert("target.object", target);
+        }
+        let capture = pw::stream::StreamRc::new(core.clone(), MIC_CAPTURE_NAME, capture_props)
+            .map_err(|e| err("capture stream", e))?;
 
         let capture_listener = capture
             .add_local_listener_with_user_data(CaptureCtx {
@@ -188,7 +197,7 @@ impl MicStreams {
         capture
             .connect(
                 spa::utils::Direction::Input,
-                mic_target,
+                None,
                 pw::stream::StreamFlags::AUTOCONNECT
                     | pw::stream::StreamFlags::MAP_BUFFERS
                     | pw::stream::StreamFlags::RT_PROCESS,
@@ -197,6 +206,9 @@ impl MicStreams {
             .map_err(|e| err("capture connect", e))?;
 
         // ---- playback: ring -> virtual source ----
+        // node.autoconnect=false keeps WirePlumber's hands off this stream
+        // (it routes playback streams to the default *sink*, i.e. the
+        // speakers — observed live); the loop links it to sink_mic itself.
         let playback = pw::stream::StreamRc::new(
             core.clone(),
             MIC_PLAYBACK_NAME,
@@ -205,6 +217,8 @@ impl MicStreams {
                 "media.category" => "Playback",
                 "node.name" => MIC_PLAYBACK_NAME,
                 "node.passive" => "true",
+                "node.autoconnect" => "false",
+                "node.dont-reconnect" => "true",
             },
         )
         .map_err(|e| err("playback stream", e))?;
@@ -250,10 +264,9 @@ impl MicStreams {
         playback
             .connect(
                 spa::utils::Direction::Output,
-                Some(source_target),
-                pw::stream::StreamFlags::AUTOCONNECT
-                    | pw::stream::StreamFlags::MAP_BUFFERS
-                    | pw::stream::StreamFlags::RT_PROCESS,
+                None,
+                // No AUTOCONNECT: the loop creates the links to sink_mic.
+                pw::stream::StreamFlags::MAP_BUFFERS | pw::stream::StreamFlags::RT_PROCESS,
                 &mut playback_params,
             )
             .map_err(|e| err("playback connect", e))?;
@@ -261,7 +274,7 @@ impl MicStreams {
         Ok(Self {
             _capture: capture,
             _capture_listener: capture_listener,
-            _playback: playback,
+            playback,
             _playback_listener: playback_listener,
             params,
         })

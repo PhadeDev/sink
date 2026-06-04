@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppStream, MicConfig, OutputDevice, VirtualSink } from "../types";
+import type { AppStream, MicConfig, OutputDevice, ProfileInfo, VirtualSink } from "../types";
 
 // Faders fire on every pointer move; debounce backend calls per target so a
 // drag doesn't spawn a pactl subprocess per pixel. UI state updates
@@ -40,7 +40,9 @@ interface MixerStore {
   inputDevices: OutputDevice[];
   fetchMic: () => Promise<void>;
   setMicConfig: (patch: Partial<MicConfig>) => Promise<void>;
-  profiles: string[];
+  profiles: ProfileInfo[];
+  /** Bind/clear an output device that auto-loads a profile (Phase 5). */
+  setProfileTrigger: (name: string, device: string | null) => Promise<void>;
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
@@ -231,8 +233,17 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
 
   fetchProfiles: async () => {
     try {
-      const profiles = await invoke<string[]>("list_profiles");
+      const profiles = await invoke<ProfileInfo[]>("list_profiles");
       set({ profiles });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  setProfileTrigger: async (name, device) => {
+    try {
+      await invoke("set_profile_trigger", { name, device: device ?? "" });
+      await get().fetchProfiles();
     } catch (e) {
       set({ error: String(e) });
     }
