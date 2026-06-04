@@ -23,6 +23,8 @@ export interface VirtualSink {
   name: string;
   /** e.g. "Game" */
   label: string;
+  /** Material Symbol for the strip icon. */
+  icon: string | null;
   volume_percent: number;
   muted: boolean;
 }

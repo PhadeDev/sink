@@ -41,6 +41,7 @@ impl MixerState {
             .map(|def| VirtualSink {
                 name: def.name.clone(),
                 label: def.label.clone(),
+                icon: def.icon.clone(),
                 volume_percent: 100,
                 muted: false,
             })

@@ -63,9 +63,10 @@ interface MixerStore {
     sinkName: string | null,
   ) => Promise<void>;
   /** Channel management: labels are free-form, sink names are stable. */
-  addChannel: (label: string) => Promise<void>;
+  addChannel: (label: string, icon: string | null) => Promise<void>;
   renameChannel: (sinkName: string, label: string) => Promise<void>;
   removeChannel: (sinkName: string) => Promise<void>;
+  setChannelIcon: (sinkName: string, icon: string) => Promise<void>;
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
@@ -280,6 +281,9 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     try {
       await invoke("create_blank_profile", { name });
       await get().fetchProfiles();
+      // Switch to the fresh profile right away — creating a blank slate
+      // and not seeing anything change reads as a bug.
+      await get().loadProfile(name);
     } catch (e) {
       set({ error: String(e) });
     }
@@ -348,9 +352,13 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     try {
       await invoke("load_profile", { name });
       set({ activeProfile: name });
-      // Volumes/mutes changed backend-side; routing re-enforces on the
-      // next poll. Refresh both views.
-      await Promise.all([get().fetchChannels(), get().fetchAppStreams()]);
+      // Layout, volumes and routing all changed backend-side.
+      await Promise.all([
+        get().fetchChannels(),
+        get().fetchAppStreams(),
+        get().fetchOutputs(),
+        get().fetchSeenApps(),
+      ]);
     } catch (e) {
       set({ error: String(e) });
     }
@@ -366,12 +374,24 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     }
   },
 
-  addChannel: async (label) => {
+  addChannel: async (label, icon) => {
     try {
-      await invoke("add_channel", { label });
+      await invoke("add_channel", { label, icon });
       await Promise.all([get().fetchChannels(), get().fetchOutputs()]);
     } catch (e) {
       set({ error: String(e) });
+    }
+  },
+
+  setChannelIcon: async (sinkName, icon) => {
+    set((s) => ({
+      channels: s.channels.map((c) => (c.name === sinkName ? { ...c, icon } : c)),
+    }));
+    try {
+      await invoke("set_channel_icon", { sinkName, icon });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchChannels();
     }
   },
 

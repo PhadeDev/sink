@@ -20,7 +20,7 @@ export function ChannelSelect({ value, onChange }: ChannelSelectProps) {
   return (
     <div style={{ position: "relative" }}>
       <button className="select" onClick={() => setOpen((o) => !o)}>
-        <Ms name={current ? channelIcon(current.name) : "help"} />
+        <Ms name={current ? channelIcon(current) : "help"} />
         <span style={{ minWidth: 52, textAlign: "left" }}>
           {current ? current.label : "Unrouted"}
         </span>
@@ -36,7 +36,7 @@ export function ChannelSelect({ value, onChange }: ChannelSelectProps) {
               setOpen(false);
             }}
           >
-            <Ms name={channelIcon(c.name)} />
+            <Ms name={channelIcon(c)} />
             <span>{c.label}</span>
             {c.name === value && <Ms name="check" style={{ marginLeft: "auto" }} />}
           </div>

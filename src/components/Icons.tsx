@@ -30,7 +30,7 @@ export function SinkMark() {
   );
 }
 
-/** Material Symbol name for each virtual channel. */
+/** Legacy fallback icons for channels created before icons existed. */
 export const CHANNEL_ICONS: Record<string, string> = {
   sink_game: "sports_esports",
   sink_chat: "forum",
@@ -38,6 +38,26 @@ export const CHANNEL_ICONS: Record<string, string> = {
   sink_system: "desktop_windows",
 };
 
-export function channelIcon(sinkName: string): string {
-  return CHANNEL_ICONS[sinkName] ?? "graphic_eq";
+export function channelIcon(channel: { name: string; icon?: string | null }): string {
+  return channel.icon ?? CHANNEL_ICONS[channel.name] ?? "graphic_eq";
 }
+
+/** Curated icon choices for the channel icon picker. */
+export const ICON_CHOICES: string[] = [
+  "sports_esports",
+  "forum",
+  "music_note",
+  "desktop_windows",
+  "headphones",
+  "mic",
+  "movie",
+  "tv",
+  "videogame_asset",
+  "campaign",
+  "record_voice_over",
+  "radio",
+  "podcasts",
+  "terminal",
+  "public",
+  "star",
+];

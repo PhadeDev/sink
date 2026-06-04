@@ -6,13 +6,20 @@ use crate::state::AppState;
 
 const LOCK_ERR: &str = "mixer state lock poisoned";
 
-/// Create a new channel from a label (sink name is generated). The new
-/// channel starts at 100%, unmuted, following the default output.
+/// Create a new channel from a label and icon (sink name is generated).
+/// The new channel starts at 100%, unmuted, following the default output.
 #[tauri::command]
-pub fn add_channel(state: State<'_, AppState>, label: String) -> Result<(), String> {
+pub fn add_channel(
+    state: State<'_, AppState>,
+    label: String,
+    icon: Option<String>,
+) -> Result<(), String> {
     let (def, defs) = {
         let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
-        let def = mixer.channel_defs.add(&label).map_err(|e| e.to_string())?;
+        let def = mixer
+            .channel_defs
+            .add(&label, icon)
+            .map_err(|e| e.to_string())?;
         (def, mixer.channel_defs.clone())
     };
 
@@ -33,10 +40,33 @@ pub fn add_channel(state: State<'_, AppState>, label: String) -> Result<(), Stri
     mixer.channels.push(VirtualSink {
         name: def.name,
         label: def.label,
+        icon: def.icon,
         volume_percent: 100,
         muted: false,
     });
     Ok(())
+}
+
+/// Change a channel's strip icon.
+#[tauri::command]
+pub fn set_channel_icon(
+    state: State<'_, AppState>,
+    sink_name: String,
+    icon: String,
+) -> Result<(), String> {
+    let icon = if icon.is_empty() { None } else { Some(icon) };
+    let defs = {
+        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        mixer
+            .channel_defs
+            .set_icon(&sink_name, icon.clone())
+            .map_err(|e| e.to_string())?;
+        if let Some(channel) = mixer.channel_mut(&sink_name) {
+            channel.icon = icon;
+        }
+        mixer.channel_defs.clone()
+    };
+    defs.save().map_err(|e| e.to_string())
 }
 
 /// Rename a channel's display label (the sink name stays stable, so

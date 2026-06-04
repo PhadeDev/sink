@@ -192,13 +192,16 @@ pub struct AppStream {
     pub active: bool,
 }
 
-/// One of the named virtual channels (Game/Chat/Music/System).
+/// One of the user-defined virtual channels.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VirtualSink {
     /// e.g. "sink_game"
     pub name: String,
     /// e.g. "Game"
     pub label: String,
+    /// Material Symbol for the strip icon.
+    #[serde(default)]
+    pub icon: Option<String>,
     pub volume_percent: u8,
     pub muted: bool,
 }

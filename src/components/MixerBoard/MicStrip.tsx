@@ -46,9 +46,9 @@ export function MicStrip() {
           className={"sbtn" + (micConfig.muted ? " on-mute" : "")}
           onClick={() => void setMicConfig({ muted: !micConfig.muted })}
           aria-pressed={micConfig.muted}
-          title="Mute mic"
+          title={micConfig.muted ? "Unmute mic" : "Mute mic"}
         >
-          M
+          <Ms name={micConfig.muted ? "mic_off" : "mic"} style={{ fontSize: 16 }} />
         </button>
       </div>
 

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useMixerStore } from "../../store/mixer";
 import type { VirtualSink } from "../../types";
 import { MAX_VOLUME } from "../../types";
-import { channelIcon, Ms } from "../Icons";
+import { channelIcon, Ms, ICON_CHOICES } from "../Icons";
+import { Modal } from "../Modal";
 import { Popover } from "../Popover";
 import { Fader } from "./Fader";
 import { OutputSelect } from "./OutputSelect";
@@ -14,14 +15,14 @@ function volToDb(v: number): string {
   return (db >= 0 ? "+" : "") + db.toFixed(1) + " dB";
 }
 
-interface ChannelStripProps {
-  channel: VirtualSink;
-  appCount: number;
-}
-
 /** Map a linear peak amplitude to a perceptual meter height. */
 function perceptual(amplitude: number): number {
   return Math.min(1, Math.sqrt(Math.max(0, amplitude)));
+}
+
+interface ChannelStripProps {
+  channel: VirtualSink;
+  appCount: number;
 }
 
 export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
@@ -32,11 +33,13 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const setChannelOutput = useMixerStore((s) => s.setChannelOutput);
   const renameChannel = useMixerStore((s) => s.renameChannel);
   const removeChannel = useMixerStore((s) => s.removeChannel);
+  const setChannelIcon = useMixerStore((s) => s.setChannelIcon);
   const channelCount = useMixerStore((s) => s.channels.length);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [pickingIcon, setPickingIcon] = useState(false);
 
   const commitRename = () => {
     setEditing(false);
@@ -46,50 +49,52 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
     }
   };
 
-  // Mono meter: show the louder of L/R (stereo split wasn't earning its
-  // width — real per-side metering returns if anyone asks).
+  // Mono meter: show the louder of L/R.
   const amplitude = Math.max(level?.[0] ?? 0, level?.[1] ?? 0);
 
   return (
     <div className={"strip" + (channel.muted ? " muted" : "")}>
       {channelCount > 1 && (
-        <div className="strip-delete-anchor">
+        <button
+          className="strip-delete"
+          aria-label={`Delete channel ${channel.label}`}
+          title="Delete channel"
+          onClick={() => setConfirmingDelete(true)}
+        >
+          <Ms name="close" style={{ fontSize: 13 }} />
+        </button>
+      )}
+
+      <div className="strip-head">
+        <div style={{ position: "relative" }}>
           <button
-            className="strip-delete"
-            aria-label={`Delete channel ${channel.label}`}
-            title="Delete channel"
-            onClick={() => setConfirmingDelete(true)}
+            className="strip-icon strip-icon-btn"
+            title="Change icon"
+            aria-label={`Change icon for ${channel.label}`}
+            onClick={() => setPickingIcon(true)}
           >
-            <Ms name="close" style={{ fontSize: 13 }} />
+            <Ms name={channelIcon(channel)} />
           </button>
           <Popover
-            open={confirmingDelete}
-            onClose={() => setConfirmingDelete(false)}
-            style={{ top: 24, right: 0, minWidth: 230 }}
+            open={pickingIcon}
+            onClose={() => setPickingIcon(false)}
+            style={{ top: 44, left: "50%", transform: "translateX(-50%)", minWidth: 196 }}
           >
-            <div className="menu-hint">
-              Apps on this channel return to the default output.
-            </div>
-            <div
-              className="menu-item menu-item-danger"
-              onClick={() => {
-                setConfirmingDelete(false);
-                void removeChannel(channel.name);
-              }}
-            >
-              <Ms name="delete" />
-              <span>Delete "{channel.label}"</span>
-            </div>
-            <div className="menu-item" onClick={() => setConfirmingDelete(false)}>
-              <Ms name="close" />
-              <span>Cancel</span>
+            <div className="icon-grid">
+              {ICON_CHOICES.map((icon) => (
+                <button
+                  key={icon}
+                  className={"icon-cell" + (channelIcon(channel) === icon ? " sel" : "")}
+                  onClick={() => {
+                    setPickingIcon(false);
+                    void setChannelIcon(channel.name, icon);
+                  }}
+                >
+                  <Ms name={icon} />
+                </button>
+              ))}
             </div>
           </Popover>
-        </div>
-      )}
-      <div className="strip-head">
-        <div className="strip-icon">
-          <Ms name={channelIcon(channel.name)} />
         </div>
         {editing ? (
           <input
@@ -141,9 +146,9 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
           className={"sbtn" + (channel.muted ? " on-mute" : "")}
           onClick={() => void toggleMute(channel.name, !channel.muted)}
           aria-pressed={channel.muted}
-          title="Mute"
+          title={channel.muted ? "Unmute" : "Mute"}
         >
-          M
+          <Ms name={channel.muted ? "volume_off" : "volume_up"} style={{ fontSize: 16 }} />
         </button>
       </div>
 
@@ -152,6 +157,31 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
         value={output}
         onChange={(o) => void setChannelOutput(channel.name, o)}
       />
+
+      <Modal
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        title={`Delete "${channel.label}"?`}
+      >
+        <p className="modal-text">
+          Apps routed to this channel return to the default output. Its saved
+          routing is removed.
+        </p>
+        <div className="modal-btns">
+          <button
+            className="modal-btn danger"
+            onClick={() => {
+              setConfirmingDelete(false);
+              void removeChannel(channel.name);
+            }}
+          >
+            Delete channel
+          </button>
+          <button className="modal-btn" onClick={() => setConfirmingDelete(false)}>
+            Cancel
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

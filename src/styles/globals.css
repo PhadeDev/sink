@@ -405,10 +405,12 @@ body,
 .strip {
   position: relative;
 }
+/* delete ×: centered above the channel icon */
 .strip-delete {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -420,6 +422,7 @@ body,
   place-items: center;
   opacity: 0;
   transition: opacity 0.12s, background 0.12s, color 0.12s;
+  z-index: 4;
 }
 .strip:hover .strip-delete {
   opacity: 1;
@@ -428,32 +431,6 @@ body,
   background: var(--danger);
   color: #fff;
 }
-/* channel delete confirmation (popover anchored to the × button) */
-.strip-delete-anchor {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 6;
-}
-.strip-delete-anchor .strip-delete {
-  position: static;
-}
-.menu-hint {
-  font-size: var(--fs-caption);
-  color: var(--fg-muted);
-  padding: var(--sp-1) var(--sp-3) var(--sp-2);
-  line-height: 1.35;
-}
-.menu-item-danger {
-  color: #fca5a5;
-}
-.menu-item-danger:hover {
-  background: rgba(239, 68, 68, 0.14);
-}
-.menu-item-danger .ms {
-  color: var(--danger);
-}
-
 .strip-name-editable {
   cursor: text;
   border-radius: var(--r-xs);
@@ -1120,6 +1097,128 @@ body,
   position: fixed;
   inset: 0;
   z-index: 30;
+}
+
+/* ---------- Modal dialogs ---------- */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal {
+  width: min(380px, calc(100vw - 48px));
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: var(--sp-6);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.modal-title {
+  font-size: var(--fs-title-lg, 16px);
+  font-weight: 600;
+}
+.modal-text {
+  font-size: var(--fs-meta);
+  color: var(--fg-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+.modal-label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+}
+.modal-btns {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+  margin-top: var(--sp-2);
+}
+.modal-btn {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-main);
+  color: var(--fg-primary);
+  font-family: inherit;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  padding: 8px var(--sp-5);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.modal-btn:hover {
+  background: var(--bg-surface-hover);
+}
+.modal-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.modal-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.modal-btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.modal-btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.modal-btn.danger:hover {
+  filter: brightness(1.12);
+}
+
+/* ---------- Icon picker grid ---------- */
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--sp-1);
+}
+.icon-cell {
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.icon-cell .ms {
+  font-size: 19px;
+}
+.icon-cell:hover {
+  background: var(--bg-surface-hover);
+  color: var(--fg-primary);
+}
+.icon-cell.sel {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+/* clickable strip icon (opens the icon picker) */
+.strip-icon-btn {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+}
+.strip-icon-btn:hover {
+  background: var(--accent-light);
+  color: var(--accent-hover);
 }
 
 /* error banner */

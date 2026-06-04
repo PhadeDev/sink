@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMixerStore } from "../../store/mixer";
-import { Ms } from "../Icons";
+import { Ms, ICON_CHOICES } from "../Icons";
+import { Modal } from "../Modal";
 import { ChannelStrip } from "./ChannelStrip";
 import { ChatMix } from "./ChatMix";
 import { MicStrip } from "./MicStrip";
@@ -8,44 +9,67 @@ import { OutputSelect } from "./OutputSelect";
 
 const MAX_CHANNELS = 10;
 
-/** Ghost strip that turns into an inline input to create a channel. */
+/** Ghost strip that opens the create-channel modal. */
 function AddChannelStrip() {
   const addChannel = useMixerStore((s) => s.addChannel);
-  const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
+  const [icon, setIcon] = useState(ICON_CHOICES[0]);
 
-  const commit = () => {
-    setEditing(false);
-    const trimmed = label.trim();
+  const close = () => {
+    setOpen(false);
     setLabel("");
-    if (trimmed) void addChannel(trimmed);
+    setIcon(ICON_CHOICES[0]);
+  };
+  const create = () => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    void addChannel(trimmed, icon);
+    close();
   };
 
-  if (editing) {
-    return (
-      <div className="strip strip-add">
+  return (
+    <>
+      <button className="strip strip-add" onClick={() => setOpen(true)} title="Add a channel">
+        <Ms name="add" style={{ fontSize: 22 }} />
+        <span className="strip-add-label">Add channel</span>
+      </button>
+
+      <Modal open={open} onClose={close} title="New channel">
         <input
-          className="menu-input strip-name-input"
+          className="menu-input"
           placeholder="Channel name…"
           value={label}
           autoFocus
           maxLength={24}
           onChange={(e) => setLabel(e.target.value)}
-          onBlur={commit}
           onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
-            if (e.key === "Escape") setEditing(false);
+            if (e.key === "Enter") create();
           }}
         />
-      </div>
-    );
-  }
-
-  return (
-    <button className="strip strip-add" onClick={() => setEditing(true)} title="Add a channel">
-      <Ms name="add" style={{ fontSize: 22 }} />
-      <span className="strip-add-label">Add channel</span>
-    </button>
+        <div className="modal-label">Icon</div>
+        <div className="icon-grid">
+          {ICON_CHOICES.map((choice) => (
+            <button
+              key={choice}
+              className={"icon-cell" + (choice === icon ? " sel" : "")}
+              onClick={() => setIcon(choice)}
+              aria-label={choice}
+            >
+              <Ms name={choice} />
+            </button>
+          ))}
+        </div>
+        <div className="modal-btns">
+          <button className="modal-btn primary" onClick={create} disabled={!label.trim()}>
+            Create channel
+          </button>
+          <button className="modal-btn" onClick={close}>
+            Cancel
+          </button>
+        </div>
+      </Modal>
+    </>
   );
 }
 

@@ -114,6 +114,7 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
                 .map(|c| ChannelDef {
                     name: c.name.clone(),
                     label: c.label.clone(),
+                    icon: c.icon.clone(),
                 })
                 .collect(),
         };
@@ -150,6 +151,7 @@ pub fn create_blank_profile(name: String) -> Result<(), String> {
         .map(|def| crate::audio::types::VirtualSink {
             name: def.name,
             label: def.label,
+            icon: def.icon,
             volume_percent: 100,
             muted: false,
         })

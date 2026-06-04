@@ -17,6 +17,9 @@ pub struct ChannelDef {
     pub name: String,
     /// Display label, e.g. "Game". Renameable.
     pub label: String,
+    /// Material Symbol name for the strip icon (None = legacy default).
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 /// The user's channel set, stored as JSON at
@@ -28,16 +31,17 @@ pub struct Channels {
 
 impl Default for Channels {
     fn default() -> Self {
-        let def = |name: &str, label: &str| ChannelDef {
+        let def = |name: &str, label: &str, icon: &str| ChannelDef {
             name: name.to_string(),
             label: label.to_string(),
+            icon: Some(icon.to_string()),
         };
         Self {
             channels: vec![
-                def("sink_game", "Game"),
-                def("sink_chat", "Chat"),
-                def("sink_music", "Music"),
-                def("sink_system", "System"),
+                def("sink_game", "Game", "sports_esports"),
+                def("sink_chat", "Chat", "forum"),
+                def("sink_music", "Music", "music_note"),
+                def("sink_system", "System", "desktop_windows"),
             ],
         }
     }
@@ -95,9 +99,19 @@ impl Channels {
         self.channels.iter().find(|c| c.name == name)
     }
 
+    pub fn set_icon(&mut self, name: &str, icon: Option<String>) -> Result<(), SinkError> {
+        let def = self
+            .channels
+            .iter_mut()
+            .find(|c| c.name == name)
+            .ok_or_else(|| SinkError::UnknownSink(name.to_string()))?;
+        def.icon = icon;
+        Ok(())
+    }
+
     /// Add a channel for `label`, generating a unique reserved-safe sink
     /// name. Returns the new definition.
-    pub fn add(&mut self, label: &str) -> Result<ChannelDef, SinkError> {
+    pub fn add(&mut self, label: &str, icon: Option<String>) -> Result<ChannelDef, SinkError> {
         let label = label.trim();
         if label.is_empty() || label.len() > 24 {
             return Err(SinkError::Config("channel label must be 1–24 characters".into()));
@@ -117,6 +131,7 @@ impl Channels {
         let def = ChannelDef {
             name,
             label: label.to_string(),
+            icon,
         };
         self.channels.push(def.clone());
         Ok(def)
@@ -163,12 +178,13 @@ mod tests {
     #[test]
     fn add_generates_unique_safe_names() {
         let mut c = Channels::default();
-        let d = c.add("Voice Chat!").expect("adds");
+        let d = c.add("Voice Chat!", Some("mic".into())).expect("adds");
         assert_eq!(d.name, "sink_voice_chat");
-        let d2 = c.add("Voice Chat").expect("adds duplicate label");
+        assert_eq!(d.icon.as_deref(), Some("mic"));
+        let d2 = c.add("Voice Chat", None).expect("adds duplicate label");
         assert_eq!(d2.name, "sink_voice_chat_2");
         // Reserved collision: label "mic" must not produce sink_mic.
-        let d3 = c.add("Mic").expect("adds");
+        let d3 = c.add("Mic", None).expect("adds");
         assert_eq!(d3.name, "sink_mic_2");
     }
 
