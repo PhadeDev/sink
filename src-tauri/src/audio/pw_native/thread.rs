@@ -749,12 +749,13 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 .values()
                 .filter(|n| n.media_class == STREAM_CLASS)
                 .map(|n| {
-                    let (app_name, match_prop) =
+                    let (app_name, match_prop, match_value) =
                         crate::audio::types::resolve_identity(|key| n.props.get(key).cloned());
                     AppStream {
                         index: n.id,
                         app_name,
                         match_prop,
+                        match_value,
                         alias: None,
                         icon_name: n.props.get("application.icon-name").cloned(),
                         assigned_sink: s

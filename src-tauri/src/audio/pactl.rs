@@ -215,12 +215,13 @@ impl AudioBackend for PactlBackend {
         Ok(inputs
             .into_iter()
             .map(|input| {
-                // Shared identity resolution: skips generic framework names
+                // Shared identity resolution: skips generic/wrapper names
                 // (e.g. "WEBRTC VoiceEngine" → the Discord binary). The
-                // winning property is the stream's persistent identity.
-                let (app_name, match_prop) = crate::audio::types::resolve_identity(|key| {
-                    prop(&input.properties, key).map(str::to_string)
-                });
+                // winning property+value is the stream's persistent identity.
+                let (app_name, match_prop, match_value) =
+                    crate::audio::types::resolve_identity(|key| {
+                        prop(&input.properties, key).map(str::to_string)
+                    });
                 let icon_name =
                     prop(&input.properties, "application.icon_name").map(str::to_string);
                 let assigned_sink = sink_names
@@ -232,6 +233,7 @@ impl AudioBackend for PactlBackend {
                     index: input.index,
                     app_name,
                     match_prop,
+                    match_value,
                     // Filled in by the command layer from the saved aliases.
                     alias: None,
                     icon_name,

@@ -3,8 +3,10 @@
 export interface AppStream {
   index: number;
   app_name: string;
-  /** PipeWire property app_name was read from (stream identity for persistence). */
+  /** PipeWire property the identity was read from. */
   match_prop: string;
+  /** Raw property value (stream identity for persistence). */
+  match_value: string;
   /** User-chosen display name overriding app_name. */
   alias: string | null;
   icon_name: string | null;

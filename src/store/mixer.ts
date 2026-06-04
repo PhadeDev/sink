@@ -338,7 +338,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     const trimmed = alias.trim();
     set((s) => ({
       appStreams: s.appStreams.map((a) =>
-        a.match_prop === stream.match_prop && a.app_name === stream.app_name
+        a.match_prop === stream.match_prop && a.match_value === stream.match_value
           ? { ...a, alias: trimmed === "" ? null : trimmed }
           : a,
       ),
@@ -346,7 +346,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     try {
       await invoke("rename_app", {
         matchProp: stream.match_prop,
-        matchValue: stream.app_name,
+        matchValue: stream.match_value,
         alias: trimmed,
       });
     } catch (e) {

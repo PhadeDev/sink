@@ -8,57 +8,178 @@ pub fn is_virtual_sink(sink_name: &str) -> bool {
         && !crate::persistence::channels::RESERVED_SINK_NAMES.contains(&sink_name)
 }
 
-/// Property values that are technically present but useless as display
-/// names — media frameworks announcing themselves instead of the app.
-const GENERIC_NAMES: [&str; 9] = [
+/// Property values that are useless as names — media frameworks announcing
+/// themselves, or placeholder stream titles.
+const GENERIC_NAMES: [&str; 13] = [
     "WEBRTC VoiceEngine",
     "audio-src",
     "Playback Stream",
     "playStream",
     "audio stream",
     "Audio Stream",
+    "audio player",
+    "media player",
     "output",
+    "Playback",
     "ALSA Playback",
     "Audio output",
+    "Audio Source",
 ];
 
-fn is_generic_name(value: &str) -> bool {
-    GENERIC_NAMES.iter().any(|g| g.eq_ignore_ascii_case(value))
+/// Runtime/wrapper names that hide the real app — e.g. Spotify is a
+/// Chromium shell, so application.name says "Chromium" while the process
+/// binary says "spotify". A wrapper beats a generic, but a real name
+/// (usually the binary) beats both.
+const WRAPPER_NAMES: [&str; 14] = [
+    "Chromium",
+    "Google Chrome",
+    "Chrome",
+    "Electron",
+    "WINE",
+    "wine64-preloader",
+    "java",
+    "python",
+    "python3",
+    "node",
+    "mono",
+    "dotnet",
+    "QtWebEngine",
+    "CEF",
+];
+
+fn name_quality(value: &str) -> u8 {
+    if GENERIC_NAMES.iter().any(|g| g.eq_ignore_ascii_case(value)) {
+        0
+    } else if WRAPPER_NAMES.iter().any(|w| w.eq_ignore_ascii_case(value)) {
+        1
+    } else {
+        2
+    }
 }
 
-/// Resolve a stream's display name + identity property. Prefers the first
-/// non-generic value along the chain; falls back to the first generic one
-/// rather than "Unknown" (a framework name still beats nothing).
-pub fn resolve_identity(get: impl Fn(&str) -> Option<String>) -> (String, String) {
+/// Prettify a value for display: lone all-lowercase binary names get a
+/// capital ("spotify" → "Spotify"). Identity matching always uses the raw
+/// value, so this never affects routing rules.
+fn prettify(value: &str) -> String {
+    if !value.contains(' ') && value.chars().all(|c| c.is_ascii_lowercase() || c == '-') {
+        let mut chars = value.chars();
+        match chars.next() {
+            Some(first) => first.to_ascii_uppercase().to_string() + chars.as_str(),
+            None => value.to_string(),
+        }
+    } else {
+        value.to_string()
+    }
+}
+
+/// Resolve a stream's identity: returns (display name, match property,
+/// raw match value). The best-quality candidate along the chain wins:
+/// real app names beat runtime wrappers beat generic stream titles.
+pub fn resolve_identity(get: impl Fn(&str) -> Option<String>) -> (String, String, String) {
     const CHAIN: [&str; 4] = [
         "application.name",
         "application.process.binary",
         "media.name",
         "node.name",
     ];
-    let mut fallback: Option<(String, String)> = None;
+    let mut best: Option<(u8, String, String)> = None;
     for key in CHAIN {
         if let Some(value) = get(key) {
-            if !is_generic_name(&value) {
-                return (value, key.to_string());
-            }
-            if fallback.is_none() {
-                fallback = Some((value, key.to_string()));
+            let quality = name_quality(&value);
+            // (map_or keeps MSRV 1.77 — Option::is_none_or is 1.82+.)
+            if best.as_ref().map_or(true, |(q, _, _)| quality > *q) {
+                let stop = quality == 2;
+                best = Some((quality, key.to_string(), value));
+                if stop {
+                    break;
+                }
             }
         }
     }
-    fallback.unwrap_or_else(|| ("Unknown".to_string(), "application.name".to_string()))
+    match best {
+        Some((_, key, value)) => (prettify(&value), key, value),
+        None => (
+            "Unknown".to_string(),
+            "application.name".to_string(),
+            "Unknown".to_string(),
+        ),
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn resolve(props: &[(&str, &str)]) -> (String, String, String) {
+        let map: HashMap<String, String> = props
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        resolve_identity(|key| map.get(key).cloned())
+    }
+
+    #[test]
+    fn spotify_masquerading_as_chromium_resolves_via_binary() {
+        let (display, prop, value) = resolve(&[
+            ("application.name", "Chromium"),
+            ("application.process.binary", "spotify"),
+            ("media.name", "Playback"),
+        ]);
+        assert_eq!(display, "Spotify"); // prettified for the UI
+        assert_eq!(prop, "application.process.binary");
+        assert_eq!(value, "spotify"); // raw for rule matching
+    }
+
+    #[test]
+    fn discord_webrtc_resolves_via_binary() {
+        let (display, prop, _) = resolve(&[
+            ("application.name", "WEBRTC VoiceEngine"),
+            ("application.process.binary", "Discord"),
+        ]);
+        assert_eq!(display, "Discord");
+        assert_eq!(prop, "application.process.binary");
+    }
+
+    #[test]
+    fn real_browser_keeps_its_wrapper_name() {
+        let (display, _, _) = resolve(&[
+            ("application.name", "Chromium"),
+            ("application.process.binary", "chromium"),
+            ("media.name", "Playback"),
+        ]);
+        assert_eq!(display, "Chromium"); // wrapper beats generic; no better candidate
+    }
+
+    #[test]
+    fn firefox_application_name_wins_immediately() {
+        let (display, prop, _) = resolve(&[
+            ("application.name", "Firefox"),
+            ("application.process.binary", "firefox"),
+        ]);
+        assert_eq!(display, "Firefox");
+        assert_eq!(prop, "application.name");
+    }
+
+    #[test]
+    fn pure_generic_still_shows_something() {
+        let (display, _, value) = resolve(&[("media.name", "audio-src"), ("node.name", "audio-src")]);
+        assert_eq!(display, "Audio-src");
+        assert_eq!(value, "audio-src");
+    }
 }
 
 /// A running application audio stream (a PulseAudio "sink input").
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppStream {
     pub index: u32,
+    /// Display name (possibly prettified — not for matching).
     pub app_name: String,
-    /// PipeWire property `app_name` was read from (e.g. "application.name").
-    /// Together with `app_name` this is the stream's stable identity, used
-    /// for persistent routing assignments and aliases.
+    /// PipeWire property the identity was read from (e.g. "application.name").
     pub match_prop: String,
+    /// Raw property value; with `match_prop` this is the stream's stable
+    /// identity for assignments, aliases and WirePlumber rules.
+    pub match_value: String,
     /// User-chosen display name overriding `app_name` (set via rename).
     pub alias: Option<String>,
     pub icon_name: Option<String>,

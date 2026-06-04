@@ -40,11 +40,11 @@ pub fn route_app_to_channel(
         if sink_name.is_empty() {
             mixer
                 .assignments
-                .remove(&stream.match_prop, &stream.app_name);
+                .remove(&stream.match_prop, &stream.match_value);
         } else {
             mixer
                 .assignments
-                .set(&stream.match_prop, &stream.app_name, &sink_name);
+                .set(&stream.match_prop, &stream.match_value, &sink_name);
         }
         // The user explicitly placed this stream; don't auto-route it again.
         mixer.auto_routed.insert(stream_index);

@@ -428,55 +428,30 @@ body,
   background: var(--danger);
   color: #fff;
 }
-/* channel delete confirmation overlay */
-.strip-confirm {
+/* channel delete confirmation (popover anchored to the × button) */
+.strip-delete-anchor {
   position: absolute;
-  inset: 0;
-  z-index: 5;
-  border-radius: var(--r-xl);
-  background: rgba(10, 10, 11, 0.92);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  text-align: center;
-  font-size: var(--fs-meta);
+  top: 6px;
+  right: 6px;
+  z-index: 6;
 }
-.strip-confirm small {
+.strip-delete-anchor .strip-delete {
+  position: static;
+}
+.menu-hint {
+  font-size: var(--fs-caption);
   color: var(--fg-muted);
-  font-size: var(--fs-caption);
-  line-height: 1.3;
+  padding: var(--sp-1) var(--sp-3) var(--sp-2);
+  line-height: 1.35;
 }
-.strip-confirm-btns {
-  display: flex;
-  gap: var(--sp-2);
-  margin-top: var(--sp-2);
+.menu-item-danger {
+  color: #fca5a5;
 }
-.strip-confirm-btns button {
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 5px 10px;
-  font-family: inherit;
-  font-size: var(--fs-caption);
-  font-weight: 600;
-  cursor: pointer;
+.menu-item-danger:hover {
+  background: rgba(239, 68, 68, 0.14);
 }
-.confirm-yes {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-}
-.confirm-yes:hover {
-  filter: brightness(1.15);
-}
-.confirm-no {
-  background: var(--bg-surface);
-  color: var(--fg-secondary);
-}
-.confirm-no:hover {
-  background: var(--bg-surface-hover);
+.menu-item-danger .ms {
+  color: var(--danger);
 }
 
 .strip-name-editable {

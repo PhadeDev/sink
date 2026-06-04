@@ -32,7 +32,7 @@ pub fn get_app_streams(state: State<'_, AppState>) -> Result<Vec<AppStream>, Str
             }
             if let Some(target) = mixer
                 .assignments
-                .sink_for(&stream.match_prop, &stream.app_name)
+                .sink_for(&stream.match_prop, &stream.match_value)
             {
                 if stream.assigned_sink.as_deref() != Some(target) {
                     match state.backend.move_stream_to_sink(stream.index, target) {
@@ -52,7 +52,7 @@ pub fn get_app_streams(state: State<'_, AppState>) -> Result<Vec<AppStream>, Str
     for stream in &mut streams {
         stream.alias = mixer
             .aliases
-            .get(&stream.match_prop, &stream.app_name)
+            .get(&stream.match_prop, &stream.match_value)
             .map(str::to_string);
     }
 
