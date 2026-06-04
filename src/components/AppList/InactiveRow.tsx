@@ -26,6 +26,10 @@ export function InactiveRow({ app }: { app: SeenApp }) {
         <div className="rsub">last seen {relativeTime(app.last_seen)}</div>
       </div>
       <div className="rtrail">
+        <ChannelSelect
+          value={app.assigned_sink}
+          onChange={(sinkName) => void setAppAssignment(app, sinkName === "" ? null : sinkName)}
+        />
         <button
           className="rename-btn row-action"
           title="Ignore — hide this app from Sink"
@@ -42,10 +46,6 @@ export function InactiveRow({ app }: { app: SeenApp }) {
         >
           <Ms name="delete" style={{ fontSize: 16 }} />
         </button>
-        <ChannelSelect
-          value={app.assigned_sink}
-          onChange={(sinkName) => void setAppAssignment(app, sinkName === "" ? null : sinkName)}
-        />
       </div>
     </div>
   );

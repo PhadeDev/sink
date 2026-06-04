@@ -39,6 +39,8 @@ export function MicScreen() {
   const micConfig = useMixerStore((s) => s.micConfig);
   const inputDevices = useMixerStore((s) => s.inputDevices);
   const setMicConfig = useMixerStore((s) => s.setMicConfig);
+  const listening = useMixerStore((s) => s.monitors[MIC_LEVEL_KEY] ?? false);
+  const toggleMonitor = useMixerStore((s) => s.toggleMonitor);
   const [deviceOpen, setDeviceOpen] = useState(false);
 
   if (!micConfig) {
@@ -148,6 +150,17 @@ export function MicScreen() {
                   onChange={(v) => void setMicConfig({ gain_percent: v })}
                 />
               </div>
+            </div>
+
+            <div className="section-label">Check your sound</div>
+            <div className="card" style={{ padding: "var(--sp-2)" }}>
+              <ToggleRow
+                icon="headphones"
+                title="Listen to yourself"
+                sub="Hear the processed mic on your output — tune the gate and compressor live"
+                on={listening}
+                onToggle={() => void toggleMonitor(MIC_LEVEL_KEY)}
+              />
             </div>
 
             <div className="section-label">Processing</div>

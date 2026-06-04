@@ -81,9 +81,6 @@ export function AppList() {
                 <InactiveRow key={`${app.match_prop}:${app.match_value}`} app={app} />
               ))}
             </div>
-            <div className="empty-hint" style={{ padding: "var(--sp-3)" }}>
-              Routing set here applies the moment the app next plays audio.
-            </div>
           </>
         )}
 
