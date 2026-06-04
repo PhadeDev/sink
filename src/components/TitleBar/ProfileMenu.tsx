@@ -45,12 +45,7 @@ export function ProfileMenu() {
         <span>{activeProfile ?? "Profiles"}</span>
         <Ms name="expand_more" />
       </button>
-      <Popover open={open} onClose={close} side="bottom" align="end" style={{ minWidth: 300 }}>
-        <div className="menu-caption">
-          <span>Profiles</span>
-          <span className="menu-caption-hint">changes save automatically</span>
-        </div>
-
+      <Popover open={open} onClose={close} side="bottom" align="end" style={{ minWidth: 240 }}>
         {profiles.map((profile) => {
           const isActive = profile.name === activeProfile;
           const trigger = triggerLabel(profile.trigger_device);

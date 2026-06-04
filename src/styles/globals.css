@@ -1114,24 +1114,6 @@ body,
 }
 
 /* profile menu */
-.menu-caption {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  padding: var(--sp-1) var(--sp-3) var(--sp-2);
-  font-size: var(--fs-caption);
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  color: var(--fg-secondary);
-  text-transform: uppercase;
-}
-.menu-caption-hint {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--fg-muted);
-}
 .profile-row-main {
   flex: 1;
   min-width: 0;
