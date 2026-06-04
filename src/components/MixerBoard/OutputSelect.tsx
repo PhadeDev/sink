@@ -33,7 +33,8 @@ export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: 
     : value === null
       ? "System default"
       : (current?.description ?? value);
-  const shortLabel = mixed ? "Mixed" : value === null ? "System out" : label.split(" ")[0];
+  // Compact footer label: a single meaningful word that fits a 122px strip.
+  const shortLabel = mixed ? "Mixed" : value === null ? "Default" : label.split(" ")[0];
 
   const items = (
     <>
@@ -68,8 +69,12 @@ export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: 
   if (compact) {
     return (
       <div style={{ position: "relative" }}>
-        <button className="strip-route strip-route-btn" onClick={() => setOpen((o) => !o)} title={label}>
-          <Ms name="arrow_forward" />
+        <button
+          className="strip-route strip-route-btn"
+          onClick={() => setOpen((o) => !o)}
+          title={`Output: ${label}`}
+        >
+          <Ms name={current ? deviceIcon(current.description) : "arrow_forward"} />
           <span className="strip-route-name">{shortLabel}</span>
           <Ms name="expand_more" />
         </button>
