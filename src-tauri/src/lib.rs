@@ -68,6 +68,7 @@ pub fn run() {
             commands::profiles::delete_profile,
             commands::profiles::set_profile_trigger,
             commands::profiles::create_blank_profile,
+            commands::profiles::get_active_profile,
         ])
         .setup(move |app| {
             build_tray(app)?;

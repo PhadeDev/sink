@@ -44,6 +44,7 @@ pub fn add_channel(
         volume_percent: 100,
         muted: false,
     });
+    crate::commands::profiles::autosave_active(&mixer);
     Ok(())
 }
 
@@ -64,6 +65,7 @@ pub fn set_channel_icon(
         if let Some(channel) = mixer.channel_mut(&sink_name) {
             channel.icon = icon;
         }
+        crate::commands::profiles::autosave_active(&mixer);
         mixer.channel_defs.clone()
     };
     defs.save().map_err(|e| e.to_string())
@@ -86,6 +88,7 @@ pub fn rename_channel(
         if let Some(channel) = mixer.channel_mut(&sink_name) {
             channel.label = label.trim().to_string();
         }
+        crate::commands::profiles::autosave_active(&mixer);
         mixer.channel_defs.clone()
     };
     defs.save().map_err(|e| e.to_string())
@@ -131,6 +134,7 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
         mixer.outputs.outputs.remove(&sink_name);
         // Re-evaluate auto-routing with the channel gone.
         mixer.auto_routed.clear();
+        crate::commands::profiles::autosave_active(&mixer);
         (
             mixer.channel_defs.clone(),
             mixer.assignments.clone(),

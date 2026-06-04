@@ -17,9 +17,12 @@ export function MicStrip() {
   const target = micConfig.muted ? 0 : amplitude;
 
   return (
-    <div className={"strip input-strip" + (micConfig.muted ? " muted" : "")}>
+    <>
+      {/* divider: capture side starts here */}
+      <div className="strips-divider" aria-hidden="true" />
+      <div className={"strip input-strip" + (micConfig.muted ? " muted" : "")}>
       <div className="strip-head">
-        <div className="strip-icon">
+        <div className="strip-icon strip-icon-mic">
           <Ms name="mic" />
         </div>
         <div className="strip-name">Mic</div>
@@ -56,6 +59,7 @@ export function MicStrip() {
         <Ms name="graphic_eq" />
         <span>Mic stream</span>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

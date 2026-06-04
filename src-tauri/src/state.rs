@@ -20,6 +20,7 @@ impl AppState {
             mic: crate::persistence::mic::load(),
             channel_defs: crate::persistence::channels::Channels::load(),
             seen: crate::persistence::seen::SeenApps::load(),
+            active_profile: crate::persistence::active::load(),
             ..MixerState::default()
         };
         Self {

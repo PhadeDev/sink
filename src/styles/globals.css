@@ -971,6 +971,20 @@ body,
 /* mic input strip accent (design: input-strip) */
 .strip.input-strip {
   border-color: #2e2e55;
+  background: linear-gradient(180deg, rgba(85, 87, 224, 0.06), var(--bg-surface) 38%);
+}
+.strip-icon-mic {
+  background: var(--accent-light);
+  color: var(--accent-hover);
+}
+
+/* vertical divider between playback channels and the capture side */
+.strips-divider {
+  flex: 0 0 1px;
+  width: 1px;
+  align-self: stretch;
+  margin: var(--sp-2) var(--sp-1);
+  background: linear-gradient(180deg, transparent, var(--border) 18%, var(--border) 82%, transparent);
 }
 
 .empty-hint {
@@ -1079,6 +1093,70 @@ body,
 .select:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* profile menu */
+.menu-caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-3) var(--sp-2);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--fg-secondary);
+  text-transform: uppercase;
+}
+.menu-caption-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--fg-muted);
+}
+.profile-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.profile-row-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-caption);
+  color: var(--warning);
+  opacity: 0.85;
+}
+.profile-row-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.profile-row:hover .profile-row-actions {
+  opacity: 1;
+}
+.row-icon-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.12s, color 0.12s;
+}
+.row-icon-btn:hover {
+  background: var(--bg-active);
+  color: var(--fg-primary);
+}
+.row-icon-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.16);
+  color: var(--danger);
 }
 
 /* profile trigger sub-panel */

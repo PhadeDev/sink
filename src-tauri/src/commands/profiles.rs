@@ -7,9 +7,43 @@ use crate::state::AppState;
 
 const LOCK_ERR: &str = "mixer state lock poisoned";
 
+/// Persist the current mixer state into the active profile, if any.
+/// Profiles are live-bound: every profile-relevant mutation calls this so
+/// switching away and back never loses changes.
+pub fn autosave_active(mixer: &crate::mixer::state::MixerState) {
+    let Some(name) = &mixer.active_profile else {
+        return;
+    };
+    // Preserve the trigger binding across autosaves.
+    let trigger = profiles::load(name).ok().and_then(|p| p.trigger_device);
+    let profile = Profile {
+        name: name.clone(),
+        channels: mixer.channels.clone(),
+        assignments: mixer.assignments.clone(),
+        outputs: mixer.outputs.clone(),
+        trigger_device: trigger,
+    };
+    if let Err(e) = profiles::save(&profile) {
+        eprintln!("sink: autosave of profile {name} failed: {e}");
+    }
+}
+
+fn set_active(state: &State<'_, AppState>, name: Option<String>) -> Result<(), String> {
+    let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    mixer.active_profile = name.clone();
+    crate::persistence::active::save(name.as_deref()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn list_profiles() -> Result<Vec<ProfileInfo>, String> {
     profiles::list().map_err(|e| e.to_string())
+}
+
+/// The profile changes are currently autosaving into (restored at launch).
+#[tauri::command]
+pub fn get_active_profile(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+    Ok(mixer.active_profile.clone())
 }
 
 /// Bind (or clear, with empty string) an output device that auto-loads
@@ -43,7 +77,9 @@ pub fn save_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
         trigger_device: trigger,
         ..profile
     };
-    profiles::save(&profile).map_err(|e| e.to_string())
+    profiles::save(&profile).map_err(|e| e.to_string())?;
+    // Saving under a name makes that profile the live-bound one.
+    set_active(&state, Some(profile.name))
 }
 
 /// Apply a saved profile: reconcile the channel **layout** (create missing
@@ -133,7 +169,8 @@ pub fn load_profile(state: State<'_, AppState>, name: String) -> Result<(), Stri
     assignments.save().map_err(|e| e.to_string())?;
     outputs.save().map_err(|e| e.to_string())?;
     wireplumber::write(&assignments).map_err(|e| e.to_string())?;
-    Ok(())
+    // The loaded profile becomes the live-bound (autosaving) one.
+    set_active(&state, Some(name))
 }
 
 /// Create a profile with a clean slate: the classic four channels at
@@ -167,6 +204,14 @@ pub fn create_blank_profile(name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn delete_profile(name: String) -> Result<(), String> {
-    profiles::delete(&name).map_err(|e| e.to_string())
+pub fn delete_profile(state: State<'_, AppState>, name: String) -> Result<(), String> {
+    profiles::delete(&name).map_err(|e| e.to_string())?;
+    let is_active = {
+        let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        mixer.active_profile.as_deref() == Some(name.as_str())
+    };
+    if is_active {
+        set_active(&state, None)?;
+    }
+    Ok(())
 }

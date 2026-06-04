@@ -142,9 +142,10 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
     }
 
     // First run: capture the current layout as the "Default" profile so
-    // there's always a known-good state to come back to.
+    // there's always a known-good state to come back to. It also becomes
+    // the active (autosaving) profile.
     if matches!(crate::persistence::profiles::list(), Ok(list) if list.is_empty()) {
-        let mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
+        let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
         let default = crate::persistence::profiles::Profile {
             name: "Default".to_string(),
             channels: mixer.channels.clone(),
@@ -152,8 +153,12 @@ pub fn init_virtual_devices(state: State<'_, AppState>) -> Result<(), String> {
             outputs: mixer.outputs.clone(),
             trigger_device: None,
         };
-        if let Err(e) = crate::persistence::profiles::save(&default) {
-            eprintln!("sink: creating Default profile failed: {e}");
+        match crate::persistence::profiles::save(&default) {
+            Ok(()) => {
+                mixer.active_profile = Some(default.name.clone());
+                let _ = crate::persistence::active::save(Some(&default.name));
+            }
+            Err(e) => eprintln!("sink: creating Default profile failed: {e}"),
         }
     }
     Ok(())
@@ -199,6 +204,7 @@ pub fn set_channel_output(
     let outputs = {
         let mut mixer = state.mixer.lock().map_err(|_| LOCK_ERR.to_string())?;
         mixer.outputs.set(&sink_name, output);
+        crate::commands::profiles::autosave_active(&mixer);
         mixer.outputs.clone()
     };
     outputs.save().map_err(|e| e.to_string())

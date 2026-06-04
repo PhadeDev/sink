@@ -78,6 +78,7 @@ pub fn forget_app(
         mixer.seen.forget(&match_prop, &match_value);
         mixer.assignments.remove(&match_prop, &match_value);
         mixer.aliases.set(&match_prop, &match_value, "");
+        crate::commands::profiles::autosave_active(&mixer);
         (
             mixer.seen.clone(),
             mixer.assignments.clone(),
@@ -110,6 +111,7 @@ pub fn set_app_assignment(
         } else {
             mixer.assignments.set(&match_prop, &match_value, &sink_name);
         }
+        crate::commands::profiles::autosave_active(&mixer);
         mixer.assignments.clone()
     };
     assignments.save().map_err(|e| e.to_string())?;

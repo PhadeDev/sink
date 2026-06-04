@@ -82,7 +82,6 @@ interface MixerStore {
   routeApp: (streamIndex: number, sinkName: string) => Promise<void>;
   setAppVolume: (streamIndex: number, volume: number) => Promise<void>;
   fetchProfiles: () => Promise<void>;
-  saveProfile: (name: string) => Promise<void>;
   loadProfile: (name: string) => Promise<void>;
   deleteProfile: (name: string) => Promise<void>;
   /** Set or clear (empty string) a persistent display name for an app. */
@@ -115,9 +114,17 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         get().fetchOutputs(),
         get().fetchMic(),
       ]);
-      // First run auto-creates "Default" backend-side; reflect it as active.
-      if (!get().activeProfile && get().profiles.some((p) => p.name === "Default")) {
-        set({ activeProfile: "Default" });
+      // Active profile is tracked backend-side (survives restarts).
+      try {
+        const active = await invoke<string | null>("get_active_profile");
+        if (active) {
+          set({ activeProfile: active });
+        } else if (get().profiles.some((p) => p.name === "Default")) {
+          // First run: the backend just created "Default" from this layout.
+          set({ activeProfile: "Default" });
+        }
+      } catch {
+        /* older backend without the command — banner-worthy errors surface elsewhere */
       }
     } catch (e) {
       set({ error: String(e) });
@@ -333,16 +340,6 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         sinkName: sinkName ?? "",
       });
       await get().fetchSeenApps();
-    } catch (e) {
-      set({ error: String(e) });
-    }
-  },
-
-  saveProfile: async (name) => {
-    try {
-      await invoke("save_profile", { name });
-      set({ activeProfile: name });
-      await get().fetchProfiles();
     } catch (e) {
       set({ error: String(e) });
     }

@@ -1,3 +1,4 @@
+pub mod active;
 pub mod aliases;
 pub mod assignments;
 pub mod autostart;

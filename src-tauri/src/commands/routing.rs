@@ -48,6 +48,7 @@ pub fn route_app_to_channel(
         }
         // The user explicitly placed this stream; don't auto-route it again.
         mixer.auto_routed.insert(stream_index);
+        crate::commands::profiles::autosave_active(&mixer);
         mixer.assignments.clone()
     };
 
@@ -73,6 +74,7 @@ pub fn set_channel_volume(
     if let Some(channel) = mixer.channel_mut(&sink_name) {
         channel.volume_percent = volume;
     }
+    crate::commands::profiles::autosave_active(&mixer);
     Ok(())
 }
 
@@ -92,6 +94,7 @@ pub fn toggle_channel_mute(
     if let Some(channel) = mixer.channel_mut(&sink_name) {
         channel.muted = muted;
     }
+    crate::commands::profiles::autosave_active(&mixer);
     Ok(())
 }
 
