@@ -20,6 +20,7 @@ function MixGroup({
   icon,
   label,
   count,
+  hint,
   onAdd,
   addTitle,
   children,
@@ -28,13 +29,15 @@ function MixGroup({
   icon: string;
   label: string;
   count: string;
+  /** Hover explanation of what this group does. */
+  hint: string;
   onAdd?: () => void;
   addTitle?: string;
   children: ReactNode;
 }) {
   return (
     <div className={"mix-group is-" + kind}>
-      <div className="group-head">
+      <div className="group-head" title={hint}>
         <Ms name={icon} className="gh-icon" />
         <span className="gh-label">{label}</span>
         <span className="gh-count">{count}</span>
@@ -127,7 +130,13 @@ export function MixerBoard() {
         <div className="mix-scroll">
           {micConfig?.enabled && (
             <>
-              <MixGroup kind="capture" icon="mic" label="Capture" count="1 in">
+              <MixGroup
+                kind="capture"
+                icon="mic"
+                label="Capture"
+                count="1 in"
+                hint="Inputs: your processed microphone. Apps capture the result as Sink Mic."
+              >
                 <MicStrip />
               </MixGroup>
               <div className="group-div" />
@@ -139,6 +148,7 @@ export function MixerBoard() {
             icon="apps"
             label="Channels"
             count={`${channels.length}`}
+            hint="Playback: apps route into channels; each has its own volume, mute and output device."
             onAdd={channels.length < MAX_CHANNELS ? () => setAddingChannel(true) : undefined}
             addTitle="Add a channel"
           >
@@ -158,6 +168,7 @@ export function MixerBoard() {
             icon="podcasts"
             label="Mixes"
             count={`${buses.length}`}
+            hint="Mixes: combine channels into capturable sources for OBS/recorders — what your audience hears."
             onAdd={buses.length < MAX_BUSES ? () => setAddingMix(true) : undefined}
             addTitle="Add a mix (capturable source for OBS/recorders)"
           >
