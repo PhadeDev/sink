@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tauri::menu::{CheckMenuItem, Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem}; // CheckMenuItem: profile rows
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, WindowEvent};
 
@@ -153,19 +153,8 @@ fn build_tray_menu(
         .collect();
     let profiles_menu = Submenu::with_items(app, "Profiles", true, &profile_refs)?;
 
-    let autostart = CheckMenuItem::with_id(
-        app,
-        "autostart",
-        "Start at login",
-        true,
-        persistence::autostart::is_enabled(),
-        None::<&str>,
-    )?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    Ok(Menu::with_items(
-        app,
-        &[&show, &profiles_menu, &autostart, &quit],
-    )?)
+    Ok(Menu::with_items(app, &[&show, &profiles_menu, &quit])?)
 }
 
 /// Rebuild the tray menu (called after anything that changes profiles or
@@ -217,17 +206,6 @@ fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         let _ = window.show();
                         let _ = window.set_focus();
                     }
-                }
-                "autostart" => {
-                    let result = if persistence::autostart::is_enabled() {
-                        persistence::autostart::disable()
-                    } else {
-                        persistence::autostart::enable()
-                    };
-                    if let Err(e) = result {
-                        eprintln!("sink: autostart toggle failed: {e}");
-                    }
-                    refresh_tray(app);
                 }
                 "quit" => {
                     // Clean up our virtual sinks before exiting. Best-effort:
