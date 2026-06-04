@@ -65,6 +65,7 @@ pub fn run() {
             commands::routing::toggle_channel_mute,
             commands::routing::set_app_volume,
             commands::routing::rename_app,
+            commands::routing::set_monitor,
             commands::mic::get_mic_config,
             commands::mic::set_mic_config,
             commands::mic::get_input_devices,

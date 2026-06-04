@@ -11,13 +11,14 @@ export function MicStrip() {
   const micConfig = useMixerStore((s) => s.micConfig);
   const setMicConfig = useMixerStore((s) => s.setMicConfig);
   const level = useMixerStore((s) => s.levels[MIC_LEVEL_KEY]);
+  const monitoring = useMixerStore((s) => s.monitors[MIC_LEVEL_KEY] ?? false);
+  const toggleMonitor = useMixerStore((s) => s.toggleMonitor);
 
   if (!micConfig?.enabled) return null;
 
   const target = micConfig.muted ? 0 : perceptual(level?.[0] ?? 0);
 
   return (
-    <>
       <div className={"strip input-strip" + (micConfig.muted ? " muted" : "")}>
       <div className="strip-head">
         <div className="strip-icon strip-icon-mic">
@@ -51,6 +52,14 @@ export function MicStrip() {
         >
           <Ms name={micConfig.muted ? "mic_off" : "mic"} style={{ fontSize: 16 }} />
         </button>
+        <button
+          className={"sbtn" + (monitoring ? " on-mon" : "")}
+          onClick={() => void toggleMonitor(MIC_LEVEL_KEY)}
+          aria-pressed={monitoring}
+          title="Sidetone — hear your processed mic on the default output"
+        >
+          <Ms name="headphones" style={{ fontSize: 16 }} />
+        </button>
       </div>
 
       <div className="strip-route">
@@ -58,8 +67,5 @@ export function MicStrip() {
         <span>Mic stream</span>
       </div>
       </div>
-      {/* divider: playback channels start to the right */}
-      <div className="strips-divider" aria-hidden="true" />
-    </>
   );
 }

@@ -44,6 +44,10 @@ pub trait AudioBackend: Send + Sync {
     /// Replace the set of channels feeding a mix bus.
     fn set_bus_members(&self, name: &str, channels: &[String]) -> Result<(), SinkError>;
 
+    /// Monitor a channel/mix/mic on the system default output (session
+    /// scoped, an extra passive link set). Native-only.
+    fn set_monitor(&self, name: &str, enabled: bool) -> Result<(), SinkError>;
+
     /// Hardware capture devices (microphones) for the Phase 3 mic chain.
     fn list_input_devices(&self) -> Result<Vec<OutputDevice>, SinkError>;
 

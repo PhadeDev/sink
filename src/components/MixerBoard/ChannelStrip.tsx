@@ -26,6 +26,8 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const removeChannel = useMixerStore((s) => s.removeChannel);
   const setChannelIcon = useMixerStore((s) => s.setChannelIcon);
   const channelCount = useMixerStore((s) => s.channels.length);
+  const monitoring = useMixerStore((s) => s.monitors[channel.name] ?? false);
+  const toggleMonitor = useMixerStore((s) => s.toggleMonitor);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -48,12 +50,12 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
     <div className={"strip" + (channel.muted ? " muted" : "")}>
       {channelCount > 1 && (
         <button
-          className="strip-delete"
+          className="strip-x"
           aria-label={`Delete channel ${channel.label}`}
           title="Delete channel"
           onClick={() => setConfirmingDelete(true)}
         >
-          <Ms name="close" style={{ fontSize: 13 }} />
+          <Ms name="close" />
         </button>
       )}
 
@@ -155,6 +157,14 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
           title={channel.muted ? "Unmute" : "Mute"}
         >
           <Ms name={channel.muted ? "volume_off" : "volume_up"} style={{ fontSize: 16 }} />
+        </button>
+        <button
+          className={"sbtn" + (monitoring ? " on-mon" : "")}
+          onClick={() => void toggleMonitor(channel.name)}
+          aria-pressed={monitoring}
+          title="Monitor — listen to this channel on the default output"
+        >
+          <Ms name="headphones" style={{ fontSize: 16 }} />
         </button>
       </div>
 

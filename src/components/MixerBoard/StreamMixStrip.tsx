@@ -10,20 +10,20 @@ import { Popover } from "../Popover";
 import { Fader } from "./Fader";
 import { VuMeter } from "./VuMeter";
 
-const MAX_BUSES = 4;
-
 /**
  * A mix (record bus): aggregates the chosen channels into a capturable
  * source. The label is exactly the device name recorders display — rename
  * it and OBS sees the new name. Volume/mute shape what recorders hear,
  * not what you hear.
  */
-function BusStrip({ bus }: { bus: BusDef }) {
+export function BusStrip({ bus }: { bus: BusDef }) {
   const channels = useMixerStore((s) => s.channels);
   const setBusMembers = useMixerStore((s) => s.setBusMembers);
   const renameBus = useMixerStore((s) => s.renameBus);
   const removeBus = useMixerStore((s) => s.removeBus);
   const level = useMixerStore((s) => s.levels[bus.name]);
+  const monitoring = useMixerStore((s) => s.monitors[bus.name] ?? false);
+  const toggleMonitor = useMixerStore((s) => s.toggleMonitor);
 
   const [volume, setVolume] = useState(100);
   const [muted, setMuted] = useState(false);
@@ -58,12 +58,12 @@ function BusStrip({ bus }: { bus: BusDef }) {
   return (
     <div className={"strip bus-strip" + (muted ? " muted" : "")}>
       <button
-        className="strip-delete"
+        className="strip-x"
         aria-label={`Delete mix ${bus.label}`}
         title="Delete mix"
         onClick={() => setConfirmingDelete(true)}
       >
-        <Ms name="close" style={{ fontSize: 13 }} />
+        <Ms name="close" />
       </button>
 
       <div className="strip-head">
@@ -146,6 +146,14 @@ function BusStrip({ bus }: { bus: BusDef }) {
         >
           <Ms name={muted ? "volume_off" : "volume_up"} style={{ fontSize: 16 }} />
         </button>
+        <button
+          className={"sbtn" + (monitoring ? " on-mon" : "")}
+          onClick={() => void toggleMonitor(bus.name)}
+          aria-pressed={monitoring}
+          title="Monitor — hear what this mix carries on the default output"
+        >
+          <Ms name="headphones" style={{ fontSize: 16 }} />
+        </button>
       </div>
 
       <div
@@ -180,65 +188,5 @@ function BusStrip({ bus }: { bus: BusDef }) {
         </div>
       </Modal>
     </div>
-  );
-}
-
-/** The mixes section: bus strips behind their divider + an add affordance. */
-export function BusStrips() {
-  const buses = useMixerStore((s) => s.buses);
-  const addBus = useMixerStore((s) => s.addBus);
-  const [adding, setAdding] = useState(false);
-  const [label, setLabel] = useState("");
-
-  const create = () => {
-    const trimmed = label.trim();
-    setLabel("");
-    setAdding(false);
-    if (trimmed) void addBus(trimmed);
-  };
-
-  return (
-    <>
-      <div className="strips-divider" aria-hidden="true" />
-      {buses.map((bus) => (
-        <BusStrip key={bus.name} bus={bus} />
-      ))}
-      {buses.length < MAX_BUSES && (
-        <button
-          className="strip strip-add strip-add-bus"
-          onClick={() => setAdding(true)}
-          title="Add a mix — a capturable source for OBS/recorders"
-        >
-          <Ms name="add" style={{ fontSize: 22 }} />
-          <span className="strip-add-label">Add mix</span>
-        </button>
-      )}
-
-      <Modal open={adding} onClose={() => setAdding(false)} title="New mix">
-        <p className="modal-text">
-          A mix is a capturable source: pick which channels it carries, then
-          select it by name in OBS or any recorder.
-        </p>
-        <input
-          className="menu-input"
-          placeholder="Mix name…"
-          value={label}
-          autoFocus
-          maxLength={24}
-          onChange={(e) => setLabel(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") create();
-          }}
-        />
-        <div className="modal-btns">
-          <button className="modal-btn primary" onClick={create} disabled={!label.trim()}>
-            Create mix
-          </button>
-          <button className="modal-btn" onClick={() => setAdding(false)}>
-            Cancel
-          </button>
-        </div>
-      </Modal>
-    </>
   );
 }

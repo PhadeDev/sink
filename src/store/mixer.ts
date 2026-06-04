@@ -77,6 +77,9 @@ interface MixerStore {
   renameBus: (name: string, label: string) => Promise<void>;
   removeBus: (name: string) => Promise<void>;
   setBusMembers: (name: string, channels: string[]) => Promise<void>;
+  /** Session-scoped "listen on default output" toggles per node. */
+  monitors: Record<string, boolean>;
+  toggleMonitor: (name: string) => Promise<void>;
   /** Name of the most recently saved/loaded profile this session. */
   activeProfile: string | null;
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
@@ -466,6 +469,19 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     } catch (e) {
       set({ error: String(e) });
       await get().fetchBuses();
+    }
+  },
+
+  monitors: {},
+
+  toggleMonitor: async (name) => {
+    const enabled = !get().monitors[name];
+    set((s) => ({ monitors: { ...s.monitors, [name]: enabled } }));
+    try {
+      await invoke("set_monitor", { sinkName: name, enabled });
+    } catch (e) {
+      set({ error: String(e) });
+      set((s) => ({ monitors: { ...s.monitors, [name]: !enabled } }));
     }
   },
 

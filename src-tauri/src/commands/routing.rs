@@ -97,6 +97,20 @@ pub fn toggle_channel_mute(
     Ok(())
 }
 
+/// Listen to a channel/mix/mic on the default output (session scoped —
+/// not persisted, cleared on restart).
+#[tauri::command]
+pub fn set_monitor(
+    state: State<'_, AppState>,
+    sink_name: String,
+    enabled: bool,
+) -> Result<(), String> {
+    state
+        .backend
+        .set_monitor(&sink_name, enabled)
+        .map_err(|e| e.to_string())
+}
+
 /// Set or clear a persistent display name for an app, keyed by its stream
 /// identity. An empty `alias` reverts to the discovered name.
 #[tauri::command]

@@ -158,6 +158,11 @@ impl AudioBackend for PipeWireBackend {
         self.request(|reply| Cmd::SetBusMembers { name, channels, reply })
     }
 
+    fn set_monitor(&self, name: &str, enabled: bool) -> Result<(), SinkError> {
+        let name = name.to_string();
+        self.request(|reply| Cmd::SetMonitor { name, enabled, reply })
+    }
+
     fn list_input_devices(&self) -> Result<Vec<crate::audio::types::OutputDevice>, SinkError> {
         self.request(|reply| Cmd::ListInputs { reply })
     }

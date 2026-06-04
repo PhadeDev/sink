@@ -55,6 +55,8 @@ pub enum Cmd {
     DestroyBus { name: String, reply: Reply<()> },
     /// Replace the channel set feeding a bus.
     SetBusMembers { name: String, channels: Vec<String>, reply: Reply<()> },
+    /// Listen to a channel/mix/mic on the default output (session scoped).
+    SetMonitor { name: String, enabled: bool, reply: Reply<()> },
     /// Apply mic chain configuration (create/destroy/re-tune as needed).
     SetMicConfig { config: MicConfig, reply: Reply<()> },
     /// Hardware capture devices (microphones).
@@ -125,6 +127,9 @@ struct State {
     bus_members: HashMap<String, std::collections::HashSet<String>>,
     /// (bus, channel) -> live links feeding the bus.
     bus_links: HashMap<(String, String), LinkSet>,
+    /// Nodes monitored on the default output, and their live links.
+    monitored: std::collections::HashSet<String>,
+    monitor_links: HashMap<String, LinkSet>,
     /// Links from the mic playback stream into the virtual mic.
     mic_links: LinkSet,
 }
@@ -701,6 +706,46 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
             }
         }
     }
+
+    // ---- monitor links (listen on the default output, session scoped) ----
+    let default_id = s
+        .default_sink_name
+        .clone()
+        .and_then(|name| s.node_by_name(&name))
+        .map(|n| n.id);
+    let monitored: Vec<String> = s.monitored.iter().cloned().collect();
+    for name in monitored {
+        let node_id = s.node_by_name(&name).map(|n| n.id);
+        let mut pairs = match (node_id, default_id) {
+            (Some(node), Some(default)) => desired_pairs(&s, node, default),
+            _ => Vec::new(),
+        };
+        // A channel already playing to the default output needs no extra
+        // links (and duplicates would fail) — monitoring is a no-op there.
+        if let Some(existing) = s.channel_links.get(&name) {
+            let existing_pairs: Vec<(u32, u32)> =
+                existing.iter().map(|(o, i, _)| (*o, *i)).collect();
+            if existing_pairs == pairs {
+                pairs = Vec::new();
+            }
+        }
+        let current: Vec<(u32, u32)> = s
+            .monitor_links
+            .get(&name)
+            .map(|links| links.iter().map(|(o, i, _)| (*o, *i)).collect())
+            .unwrap_or_default();
+        if current != pairs {
+            s.monitor_links.remove(&name);
+            if !pairs.is_empty() {
+                if let (Some(node), Some(default)) = (node_id, default_id) {
+                    let created = create_links(&core, &name, node, default, &pairs);
+                    if !created.is_empty() {
+                        s.monitor_links.insert(name, created);
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
@@ -888,6 +933,19 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 .borrow_mut()
                 .bus_members
                 .insert(name, channels.into_iter().collect());
+            ensure_all_links(state);
+            let _ = reply.send(Ok(()));
+        }
+        Cmd::SetMonitor { name, enabled, reply } => {
+            {
+                let mut s = state.borrow_mut();
+                if enabled {
+                    s.monitored.insert(name);
+                } else {
+                    s.monitored.remove(&name);
+                    s.monitor_links.remove(&name);
+                }
+            }
             ensure_all_links(state);
             let _ = reply.send(Ok(()));
         }
