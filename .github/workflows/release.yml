@@ -98,7 +98,8 @@ jobs:
         # bundled copy and let the loader use the system library.
         run: |
           set -euo pipefail
-          cd src-tauri/target/release/bundle/appimage
+          # The cargo target dir lives at the repo root in this workspace.
+          cd "$(dirname "$(find target -path '*/release/bundle/appimage/sink_*.AppImage' | head -1)")"
           app=$(ls sink_*.AppImage)
           ./"$app" --appimage-extract > /dev/null
           rm -fv squashfs-root/usr/lib/libpipewire-0.3.so*
@@ -122,6 +123,6 @@ jobs:
 
           Requires PipeWire with \`pipewire-pulse\` and WirePlumber 0.5+."
           gh release upload "$tag" --clobber \
-            src-tauri/target/release/bundle/appimage/sink_*.AppImage \
-            src-tauri/target/release/bundle/deb/*.deb \
-            src-tauri/target/release/bundle/rpm/*.rpm
+            target/release/bundle/appimage/sink_*.AppImage \
+            target/release/bundle/deb/*.deb \
+            target/release/bundle/rpm/*.rpm
