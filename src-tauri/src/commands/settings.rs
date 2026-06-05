@@ -55,6 +55,22 @@ pub fn set_device_label_style(
     prefs.save().map_err(|e| e.to_string())
 }
 
+/// Pick the two channels the balance slider blends.
+#[tauri::command]
+pub fn set_balance_channels(
+    state: State<'_, AppState>,
+    a: Option<String>,
+    b: Option<String>,
+) -> Result<(), String> {
+    let prefs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.prefs.balance_a = a;
+        mixer.prefs.balance_b = b;
+        mixer.prefs.clone()
+    };
+    prefs.save().map_err(|e| e.to_string())
+}
+
 /// Mark the first-run tutorial as completed (never shown again, until a
 /// factory reset).
 #[tauri::command]

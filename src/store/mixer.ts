@@ -98,6 +98,10 @@ interface MixerStore {
   finishOnboarding: (blank: boolean) => Promise<void>;
   /** Reopen the tutorial (view-only — no starting-point choice). */
   replayOnboarding: () => void;
+  /** Balance slider channel picks (null = auto Game/Chat or first two). */
+  balanceA: string | null;
+  balanceB: string | null;
+  setBalanceChannels: (a: string | null, b: string | null) => Promise<void>;
 
   /** Create the virtual sinks and load initial state. */
   initialize: () => Promise<void>;
@@ -147,6 +151,18 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
 
   replayOnboarding: () => set({ showOnboarding: true, onboardingReplay: true }),
 
+  balanceA: null,
+  balanceB: null,
+
+  setBalanceChannels: async (a, b) => {
+    set({ balanceA: a, balanceB: b });
+    try {
+      await invoke("set_balance_channels", { a, b });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
   finishOnboarding: async (blank) => {
     const replay = get().onboardingReplay;
     set({ showOnboarding: false, onboardingReplay: false });
@@ -178,8 +194,11 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
       void invoke<{ native: boolean }>("get_backend_info")
         .then((i) => set({ backendNative: i.native }))
         .catch(() => {});
-      void invoke<{ onboarded: boolean }>("get_prefs")
+      void invoke<{ onboarded: boolean; balance_a: string | null; balance_b: string | null }>(
+        "get_prefs",
+      )
         .then((p) => {
+          set({ balanceA: p.balance_a, balanceB: p.balance_b });
           if (!p.onboarded) set({ showOnboarding: true });
         })
         .catch(() => {});

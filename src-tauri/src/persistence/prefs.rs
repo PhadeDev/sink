@@ -26,6 +26,12 @@ pub struct Prefs {
     /// First-run tutorial completed (false = show it on launch).
     #[serde(default)]
     pub onboarded: bool,
+    /// ChatMix-style balance: the two channel sink names being balanced
+    /// (None = auto: Game/Chat when present, else the first two channels).
+    #[serde(default)]
+    pub balance_a: Option<String>,
+    #[serde(default)]
+    pub balance_b: Option<String>,
 }
 
 impl Prefs {

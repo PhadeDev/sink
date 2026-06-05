@@ -1664,3 +1664,70 @@ body,
 .mic-tip a {
   color: var(--accent-hover);
 }
+
+/* ---------- balance bar (ChatMix) ---------- */
+.balance-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-7);
+  border-top: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  max-width: 560px;
+}
+.bal-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--fg-secondary);
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s;
+}
+.bal-side:hover {
+  color: var(--fg-primary);
+  border-color: var(--bg-active);
+}
+.bal-side .ms {
+  font-size: 15px;
+}
+.bal-track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  min-width: 140px;
+  border-radius: var(--r-pill);
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.bal-center {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--fg-muted);
+  opacity: 0.5;
+  border-radius: 1px;
+}
+.bal-cap {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--fg-primary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  transition: left 0.06s linear;
+}

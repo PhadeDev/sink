@@ -4,6 +4,7 @@ import { useMixerStore } from "../../store/mixer";
 import { MASTER_BUS } from "../../types";
 import { Ms, ICON_CHOICES } from "../Icons";
 import { Modal } from "../Modal";
+import { BalanceBar } from "./BalanceBar";
 import { ChannelStrip } from "./ChannelStrip";
 import { MicStrip } from "./MicStrip";
 import { BusStrip } from "./StreamMixStrip";
@@ -176,6 +177,8 @@ export function MixerBoard() {
           )}
         </div>
       </div>
+
+      <BalanceBar />
 
       <Modal open={addingChannel} onClose={closeChannelModal} title="New channel">
         <input
