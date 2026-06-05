@@ -642,18 +642,23 @@ body,
 }
 .meter-fill {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
+  /* The zone colors are fixed to the TRACK (not the fill) and revealed by
+   * a clip-path, so green/amber/red are calibrated positions: green below
+   * −6 dBFS (70.8%), amber to −3 dBFS (84.1%), red above. Red genuinely
+   * means "about to clip" — it can't appear at the tip of a quiet bar. */
   background: linear-gradient(
     to top,
     var(--online) 0%,
-    var(--online) 62%,
-    var(--warning) 80%,
+    var(--online) 70.8%,
+    var(--warning) 71%,
+    var(--warning) 84%,
+    var(--danger) 84.5%,
     var(--danger) 100%
   );
   border-radius: var(--r-pill);
-  transition: height 0.06s linear;
+  clip-path: inset(100% 0 0 0);
+  transition: clip-path 0.06s linear;
 }
 .meter-peak {
   position: absolute;
@@ -662,6 +667,51 @@ body,
   height: 2px;
   background: var(--fg-primary);
   opacity: 0.8;
+}
+/* −6 dBFS reference tick */
+.meter-tick {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--fg-muted);
+  opacity: 0.5;
+}
+
+/* meter column: clip light above, dBFS readout below */
+.vu-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+.vu-col .meter {
+  flex: 1;
+  min-height: 0;
+}
+.vu-clip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bg-active);
+  border: 1px solid var(--border);
+  flex: 0 0 auto;
+  transition: background 0.1s, box-shadow 0.1s;
+}
+.vu-clip.on {
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+}
+.vu-db {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  min-width: 20px;
+  text-align: center;
 }
 
 .strip-readout {
