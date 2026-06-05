@@ -156,12 +156,16 @@ pub fn init_virtual_devices(
     }
 
     // Bring up the user's mixes and their memberships.
+    let names: Vec<String> = defs.channels.iter().map(|c| c.name.clone()).collect();
     for bus in &buses.buses {
         if let Err(e) = state.backend.create_bus(&bus.name, &prefs.decorate(&bus.label)) {
             eprintln!("sink: creating mix {} failed: {e}", bus.name);
             continue;
         }
-        if let Err(e) = state.backend.set_bus_members(&bus.name, &bus.channels) {
+        if let Err(e) = state
+            .backend
+            .set_bus_members(&bus.name, &bus.effective_members(&names))
+        {
             eprintln!("sink: members for mix {} failed: {e}", bus.name);
         }
     }

@@ -1518,3 +1518,10 @@ body,
   font-size: var(--fs-caption);
   color: var(--fg-muted);
 }
+
+/* divider inside popover menus */
+.menu-div {
+  height: 1px;
+  background: var(--border);
+  margin: var(--sp-1) var(--sp-2);
+}

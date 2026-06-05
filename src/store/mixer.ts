@@ -77,6 +77,8 @@ interface MixerStore {
   renameBus: (name: string, label: string) => Promise<void>;
   removeBus: (name: string) => Promise<void>;
   setBusMembers: (name: string, channels: string[]) => Promise<void>;
+  /** Manual vs auto-include mode (carried set preserved). */
+  setBusExclude: (name: string, exclude: boolean) => Promise<void>;
   /** Session-scoped "listen on default output" toggles per node. */
   monitors: Record<string, boolean>;
   toggleMonitor: (name: string) => Promise<void>;
@@ -498,11 +500,42 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   },
 
   setBusMembers: async (name, channels) => {
+    // `channels` is the carried set; auto-include mixes store the
+    // complement (mirrors the backend's conversion).
+    const all = get().channels.map((c) => c.name);
     set((s) => ({
-      buses: s.buses.map((b) => (b.name === name ? { ...b, channels } : b)),
+      buses: s.buses.map((b) =>
+        b.name === name
+          ? { ...b, channels: b.exclude ? all.filter((c) => !channels.includes(c)) : channels }
+          : b,
+      ),
     }));
     try {
       await invoke("set_bus_members", { name, channels });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchBuses();
+    }
+  },
+
+  setBusExclude: async (name, exclude) => {
+    const all = get().channels.map((c) => c.name);
+    set((s) => ({
+      buses: s.buses.map((b) => {
+        if (b.name !== name || b.exclude === exclude) return b;
+        // Preserve the carried set; only the stored representation flips.
+        const carried = b.exclude
+          ? all.filter((c) => !b.channels.includes(c))
+          : b.channels;
+        return {
+          ...b,
+          exclude,
+          channels: exclude ? all.filter((c) => !carried.includes(c)) : carried,
+        };
+      }),
+    }));
+    try {
+      await invoke("set_bus_exclude", { name, exclude });
     } catch (e) {
       set({ error: String(e) });
       await get().fetchBuses();

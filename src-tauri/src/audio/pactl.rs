@@ -364,17 +364,27 @@ impl AudioBackend for PactlBackend {
         sink_name: &str,
         output_name: Option<&str>,
     ) -> Result<(), SinkError> {
-        // Replace any existing loopback for this channel.
-        let existing = {
+        // Replace any existing loopback for this channel — by asking the
+        // server, not just our own table. A previous run that died without
+        // teardown leaves its modules loaded, and stacking a fresh set on
+        // top plays the channel once per leftover.
+        {
             let mut loopbacks = self
                 .loopbacks
                 .lock()
                 .map_err(|_| SinkError::Parse("loopback table lock poisoned".into()))?;
-            loopbacks.remove(sink_name)
-        };
-        if let Some(index) = existing {
-            // Best effort: the module may already be gone.
-            let _ = Self::run(&["unload-module", &index.to_string()]);
+            loopbacks.remove(sink_name);
+        }
+        let needle = format!("source={sink_name}.monitor");
+        if let Ok(stdout) = Self::run(&["list", "modules", "short"]) {
+            for line in stdout.lines() {
+                if line.contains("module-loopback") && line.contains(&needle) {
+                    if let Some(index) = line.split_whitespace().next() {
+                        // Best effort: the module may already be gone.
+                        let _ = Self::run(&["unload-module", index]);
+                    }
+                }
+            }
         }
 
         let target = output_name.unwrap_or("@DEFAULT_SINK@");

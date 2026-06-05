@@ -30,8 +30,29 @@ pub struct BusDef {
     pub name: String,
     /// Display label — also the device description recorders see.
     pub label: String,
-    /// Channel sink names included in this mix.
+    /// Exclude mode (false): channels carried by this mix.
+    /// Exclude mode (true): channels kept OUT of this mix.
     pub channels: Vec<String>,
+    /// True = the mix carries every channel except `channels`, so new
+    /// channels join automatically ("everything but music"). False = the
+    /// mix carries exactly `channels` (manual selection).
+    #[serde(default)]
+    pub exclude: bool,
+}
+
+impl BusDef {
+    /// The channels this mix actually carries, given the full channel set.
+    pub fn effective_members(&self, all_channels: &[String]) -> Vec<String> {
+        if self.exclude {
+            all_channels
+                .iter()
+                .filter(|c| !self.channels.contains(c))
+                .cloned()
+                .collect()
+        } else {
+            self.channels.clone()
+        }
+    }
 }
 
 /// The user's mixes, stored at `$XDG_CONFIG_HOME/sink/buses.json`.
@@ -47,6 +68,7 @@ impl Default for Buses {
                 name: DEFAULT_BUS_NODE.to_string(),
                 label: "Master Mix".to_string(),
                 channels: Vec::new(),
+                exclude: false,
             }],
         }
     }
@@ -124,10 +146,49 @@ impl Buses {
                 name: DEFAULT_BUS_NODE.to_string(),
                 label: "Master Mix".to_string(),
                 channels: Vec::new(),
+                exclude: false,
             },
         };
         def.channels = channels.to_vec();
+        def.exclude = false;
         self.buses.insert(0, def);
+    }
+
+    /// Switch a mix between manual and auto-include mode, preserving its
+    /// current effective membership (the stored list flips meaning).
+    pub fn set_exclude(
+        &mut self,
+        name: &str,
+        exclude: bool,
+        all_channels: &[String],
+    ) -> Result<(), SinkError> {
+        if is_master(name) {
+            return Err(SinkError::Config(
+                "the master mix always carries every channel".into(),
+            ));
+        }
+        let def = self
+            .buses
+            .iter_mut()
+            .find(|b| b.name == name)
+            .ok_or_else(|| SinkError::UnknownSink(name.to_string()))?;
+        if def.exclude == exclude {
+            return Ok(());
+        }
+        // Preserve what the mix carries: exclude mode stores the
+        // complement, manual mode stores the carried set itself.
+        let effective = def.effective_members(all_channels);
+        def.channels = if exclude {
+            all_channels
+                .iter()
+                .filter(|c| !effective.contains(c))
+                .cloned()
+                .collect()
+        } else {
+            effective
+        };
+        def.exclude = exclude;
+        Ok(())
     }
 
     pub fn add(&mut self, label: &str) -> Result<BusDef, SinkError> {
@@ -148,10 +209,14 @@ impl Buses {
             name = format!("{base}_{counter}");
             counter += 1;
         }
+        // New mixes start in auto-include mode carrying everything —
+        // uncheck what you don't want ("everything but music") and future
+        // channels keep joining automatically.
         let def = BusDef {
             name,
             label: label.to_string(),
             channels: Vec::new(),
+            exclude: true,
         };
         self.buses.push(def.clone());
         Ok(def)
@@ -260,6 +325,51 @@ mod tests {
         b.sync_master(&["sink_game".into()]);
         assert_eq!(b.buses[0].label, "Master Mix");
         assert_eq!(b.buses[0].channels, vec!["sink_game"]);
+    }
+
+    #[test]
+    fn exclude_mode_carries_everything_but_the_unchecked() {
+        let all = vec![
+            "sink_game".to_string(),
+            "sink_chat".to_string(),
+            "sink_music".to_string(),
+        ];
+        let mut b = Buses::default();
+        let mix = b.add("No Music").expect("adds");
+        // New mixes auto-include: carry everything out of the box…
+        assert!(mix.exclude);
+        assert_eq!(b.get(&mix.name).expect("mix").effective_members(&all), all);
+        // …and a new channel joins without touching the definition.
+        let mut grown = all.clone();
+        grown.push("sink_voice".to_string());
+        assert_eq!(b.get(&mix.name).expect("mix").effective_members(&grown), grown);
+
+        // Keep music out: only music is stored; everything else flows.
+        b.set_members(&mix.name, vec!["sink_music".into()]).expect("sets");
+        assert_eq!(
+            b.get(&mix.name).expect("mix").effective_members(&grown),
+            vec!["sink_game", "sink_chat", "sink_voice"]
+        );
+    }
+
+    #[test]
+    fn mode_switch_preserves_effective_membership() {
+        let all = vec!["sink_game".to_string(), "sink_music".to_string()];
+        let mut b = Buses::default();
+        let mix = b.add("Mix").expect("adds"); // exclude, carries all
+        b.set_members(&mix.name, vec!["sink_music".into()]).expect("excludes music");
+
+        b.set_exclude(&mix.name, false, &all).expect("to manual");
+        let def = b.get(&mix.name).expect("mix");
+        assert!(!def.exclude);
+        assert_eq!(def.channels, vec!["sink_game"]); // stored = carried now
+        assert_eq!(def.effective_members(&all), vec!["sink_game"]);
+
+        b.set_exclude(&mix.name, true, &all).expect("back to auto");
+        let def = b.get(&mix.name).expect("mix");
+        assert_eq!(def.effective_members(&all), vec!["sink_game"]);
+        // Master can't leave auto-everything.
+        assert!(b.set_exclude("sink_stream", true, &all).is_err());
     }
 
     #[test]

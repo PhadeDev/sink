@@ -2,7 +2,7 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMixerStore } from "../../store/mixer";
 import type { BusDef } from "../../types";
-import { MASTER_BUS, MAX_VOLUME } from "../../types";
+import { busMembers, MASTER_BUS, MAX_VOLUME } from "../../types";
 import { perceptual, volToDb } from "../../lib/audio";
 import { Ms } from "../Icons";
 import { Modal } from "../Modal";
@@ -19,6 +19,7 @@ import { VuMeter } from "./VuMeter";
 export function BusStrip({ bus }: { bus: BusDef }) {
   const channels = useMixerStore((s) => s.channels);
   const setBusMembers = useMixerStore((s) => s.setBusMembers);
+  const setBusExclude = useMixerStore((s) => s.setBusExclude);
   const renameBus = useMixerStore((s) => s.renameBus);
   const removeBus = useMixerStore((s) => s.removeBus);
   const level = useMixerStore((s) => s.levels[bus.name]);
@@ -60,10 +61,14 @@ export function BusStrip({ bus }: { bus: BusDef }) {
       });
     }
   };
+  // What this mix actually carries (mode-aware).
+  const allNames = channels.map((c) => c.name);
+  const carried = busMembers(bus, allNames);
+
   const toggleMember = (channelName: string) => {
-    const next = bus.channels.includes(channelName)
-      ? bus.channels.filter((c) => c !== channelName)
-      : [...bus.channels, channelName];
+    const next = carried.includes(channelName)
+      ? carried.filter((c) => c !== channelName)
+      : [...carried, channelName];
     void setBusMembers(bus.name, next);
   };
 
@@ -120,7 +125,11 @@ export function BusStrip({ bus }: { bus: BusDef }) {
               title="Choose which channels this mix carries"
               onClick={() => setManaging(true)}
             >
-              {bus.channels.length} {bus.channels.length === 1 ? "channel" : "channels"}
+              {bus.exclude
+                ? bus.channels.length === 0
+                  ? "all channels"
+                  : `all but ${bus.channels.length}`
+                : `${carried.length} ${carried.length === 1 ? "channel" : "channels"}`}
               <Ms name="expand_more" style={{ fontSize: 13 }} />
             </button>
             <Popover
@@ -131,7 +140,7 @@ export function BusStrip({ bus }: { bus: BusDef }) {
               style={{ minWidth: 220 }}
             >
               {channels.map((c) => {
-                const checked = bus.channels.includes(c.name);
+                const checked = carried.includes(c.name);
                 return (
                   <div key={c.name} className="menu-item" onClick={() => toggleMember(c.name)}>
                     <Ms
@@ -142,6 +151,18 @@ export function BusStrip({ bus }: { bus: BusDef }) {
                   </div>
                 );
               })}
+              <div className="menu-div" />
+              <div
+                className="menu-item"
+                title="New channels join this mix automatically — keep the ones you don't want unchecked"
+                onClick={() => void setBusExclude(bus.name, !bus.exclude)}
+              >
+                <Ms
+                  name={bus.exclude ? "check_box" : "check_box_outline_blank"}
+                  style={bus.exclude ? { color: "var(--accent-hover)" } : undefined}
+                />
+                <span>Auto-include new channels</span>
+              </div>
             </Popover>
           </div>
         )}

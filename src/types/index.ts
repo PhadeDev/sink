@@ -84,8 +84,17 @@ export interface SeenApp {
 export interface BusDef {
   name: string;
   label: string;
-  /** Member channel sink names. */
+  /** Manual mode: carried channels. Auto-include mode: excluded channels. */
   channels: string[];
+  /** True = carries everything except `channels`; new channels join automatically. */
+  exclude: boolean;
+}
+
+/** The channels a mix actually carries, given the full channel set. */
+export function busMembers(bus: BusDef, allChannels: string[]): string[] {
+  return bus.exclude
+    ? allChannels.filter((c) => !bus.channels.includes(c))
+    : bus.channels;
 }
 
 /** Profile listing entry (Phase 5: trigger_device auto-loads the profile). */

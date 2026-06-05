@@ -38,7 +38,7 @@ pub fn add_channel(
     }
 
     defs.save().map_err(|e| e.to_string())?;
-    let buses = {
+    let (buses, names) = {
         let mut mixer = state.lock_mixer()?;
         mixer.channels.push(VirtualSink {
             name: def.name,
@@ -49,14 +49,18 @@ pub fn add_channel(
             stream_mix: def.stream_mix,
         });
         // The new channel joins the master mix automatically.
-        let names: Vec<String> = mixer.channels.iter().map(|c| c.name.clone()).collect();
+        let names = crate::commands::buses::channel_names(&mixer);
         mixer.buses.sync_master(&names);
         crate::commands::profiles::autosave_active(&mixer);
-        mixer.buses.clone()
+        (mixer.buses.clone(), names)
     };
-    if let Some(master) = buses.get(crate::persistence::buses::DEFAULT_BUS_NODE) {
-        if let Err(e) = state.backend.set_bus_members(&master.name, &master.channels) {
-            eprintln!("sink: master mix membership failed: {e}");
+    // The master and every auto-include mix pick the new channel up.
+    for bus in &buses.buses {
+        let members = bus.effective_members(&names);
+        if members.contains(&names[names.len() - 1]) {
+            if let Err(e) = state.backend.set_bus_members(&bus.name, &members) {
+                eprintln!("sink: membership for mix {} failed: {e}", bus.name);
+            }
         }
     }
     buses.save().map_err(|e| e.to_string())?;
@@ -139,7 +143,7 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
         .destroy_virtual_sink(&sink_name)
         .map_err(|e| e.to_string())?;
 
-    let (defs, assignments, outputs, buses) = {
+    let (defs, assignments, outputs, buses, names) = {
         let mut mixer = state.lock_mixer()?;
         mixer.channels.retain(|c| c.name != sink_name);
         mixer
@@ -157,11 +161,14 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
             mixer.assignments.clone(),
             mixer.outputs.clone(),
             mixer.buses.clone(),
+            crate::commands::buses::channel_names(&mixer),
         )
     };
 
     for bus in &buses.buses {
-        let _ = state.backend.set_bus_members(&bus.name, &bus.channels);
+        let _ = state
+            .backend
+            .set_bus_members(&bus.name, &bus.effective_members(&names));
     }
 
     defs.save().map_err(|e| e.to_string())?;
