@@ -55,6 +55,17 @@ pub fn set_device_label_style(
     prefs.save().map_err(|e| e.to_string())
 }
 
+/// Show or hide the title-bar balance slider.
+#[tauri::command]
+pub fn set_balance_visible(state: State<'_, AppState>, visible: bool) -> Result<(), String> {
+    let prefs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.prefs.show_balance = visible;
+        mixer.prefs.clone()
+    };
+    prefs.save().map_err(|e| e.to_string())
+}
+
 /// Pick the two channels the balance slider blends.
 #[tauri::command]
 pub fn set_balance_channels(

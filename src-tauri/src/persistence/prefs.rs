@@ -19,7 +19,7 @@ pub enum DeviceLabelStyle {
 }
 
 /// App preferences, stored at `$XDG_CONFIG_HOME/sink/prefs.json`.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Prefs {
     #[serde(default)]
     pub device_label_style: DeviceLabelStyle,
@@ -32,6 +32,25 @@ pub struct Prefs {
     pub balance_a: Option<String>,
     #[serde(default)]
     pub balance_b: Option<String>,
+    /// Show the balance slider in the title bar.
+    #[serde(default = "default_true")]
+    pub show_balance: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for Prefs {
+    fn default() -> Self {
+        Self {
+            device_label_style: DeviceLabelStyle::default(),
+            onboarded: false,
+            balance_a: None,
+            balance_b: None,
+            show_balance: true,
+        }
+    }
 }
 
 impl Prefs {

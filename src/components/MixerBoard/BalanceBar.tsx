@@ -15,6 +15,7 @@ export function BalanceBar() {
   const channels = useMixerStore((s) => s.channels);
   const balanceA = useMixerStore((s) => s.balanceA);
   const balanceB = useMixerStore((s) => s.balanceB);
+  const showBalance = useMixerStore((s) => s.showBalance);
   const setBalanceChannels = useMixerStore((s) => s.setBalanceChannels);
   const setChannelVolume = useMixerStore((s) => s.setChannelVolume);
 
@@ -71,7 +72,7 @@ export function BalanceBar() {
     };
   }, []);
 
-  if (!a || !b || channels.length < 2) return null;
+  if (!showBalance || !a || !b || channels.length < 2) return null;
 
   const side = (
     channel: VirtualSink,
@@ -80,13 +81,15 @@ export function BalanceBar() {
     other: VirtualSink,
     pick: (name: string) => void,
   ) => (
-    <div style={{ position: "relative" }}>
-      <button className="bal-side" onClick={() => setOpen(!open)} title="Pick the channel on this side">
+    <div style={{ position: "relative", display: "flex" }}>
+      <button
+        className="bal-side"
+        onClick={() => setOpen(!open)}
+        title={`${channel.label} — click to pick the channel on this side`}
+      >
         <Ms name={channel.icon ?? "graphic_eq"} />
-        <span>{channel.label}</span>
-        <Ms name="expand_more" style={{ fontSize: 13 }} />
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} side="top" align="start">
+      <Popover open={open} onClose={() => setOpen(false)} side="bottom" align="center">
         {channels
           .filter((c) => c.name !== other.name)
           .map((c) => (
@@ -107,12 +110,12 @@ export function BalanceBar() {
   );
 
   return (
-    <div className="balance-bar">
+    <div className="balance-bar" title="Balance — center is both at 100%; double-click to recenter">
       {side(a, pickingA, setPickingA, b, (name) => void setBalanceChannels(name, b!.name))}
       <div
         className="bal-track"
         ref={trackRef}
-        title={`Center = both at 100%. Slide toward a side to duck the other (${a.label} ${a.volume_percent}% / ${b.label} ${b.volume_percent}%)`}
+        title={`${a.label} ${a.volume_percent}% / ${b.label} ${b.volume_percent}% — slide toward a side to duck the other`}
         onPointerDown={(e) => {
           dragging.current = true;
           fromEvent(e.clientX);

@@ -86,6 +86,7 @@ pub fn run() {
             commands::settings::set_device_label_style,
             commands::settings::set_onboarded,
             commands::settings::set_balance_channels,
+            commands::settings::set_balance_visible,
             commands::settings::reset_app,
         ])
         .setup(move |app| {
