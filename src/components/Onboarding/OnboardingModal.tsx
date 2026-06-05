@@ -6,8 +6,46 @@ interface Step {
   icon: string;
   title: string;
   body: string;
-  /** Monospace signal-flow sketch shown under the body. */
-  diagram?: string;
+  /** Show the signal-flow diagram under the body. */
+  diagram?: boolean;
+}
+
+/** The signal-flow picture: apps → channels → ears, with mixes tapping
+ * channels for recorders. Styled like the mixer itself (channel = indigo,
+ * mix = amber). */
+function FlowDiagram() {
+  return (
+    <div className="ob-flow">
+      <div className="ob-flow-row">
+        <span className="ob-flow-node">
+          <Ms name="apps" />
+          Apps
+        </span>
+        <Ms name="arrow_forward" className="ob-flow-arrow" />
+        <span className="ob-flow-node is-channel">
+          <Ms name="tune" />
+          Channels
+        </span>
+        <Ms name="arrow_forward" className="ob-flow-arrow" />
+        <span className="ob-flow-node">
+          <Ms name="headphones" />
+          Your ears
+        </span>
+      </div>
+      <div className="ob-flow-row ob-flow-branch">
+        <Ms name="subdirectory_arrow_right" className="ob-flow-arrow" />
+        <span className="ob-flow-node is-mix">
+          <Ms name="radio_button_checked" />
+          Mixes
+        </span>
+        <Ms name="arrow_forward" className="ob-flow-arrow" />
+        <span className="ob-flow-node">
+          <Ms name="videocam" />
+          OBS / recorder
+        </span>
+      </div>
+    </div>
+  );
 }
 
 // Three short cards: the mental model first (as a picture), then the two
@@ -17,8 +55,7 @@ const STEPS: Step[] = [
     icon: "graphic_eq",
     title: "Your sound, on a board",
     body: "Every app's audio lands on a channel you control. Send each channel to your ears — and tap any group as a recording.",
-    diagram:
-      " apps ─► channels ─► your ears\n              └────► a Mix ─► OBS",
+    diagram: true,
   },
   {
     icon: "grid_view",
@@ -27,8 +64,8 @@ const STEPS: Step[] = [
   },
   {
     icon: "mic",
-    title: "A better mic",
-    body: "Sink builds a cleaned-up mic — gated, compressed, leveled. Pick it in Discord or OBS, and hear yourself while you dial it in.",
+    title: "Microphone",
+    body: "Optional: run your mic through a noise gate, compressor and limiter, then pick the result in Discord or OBS.",
   },
 ];
 
@@ -59,14 +96,6 @@ export function OnboardingModal() {
               Channels, apps and the mic are all live — your setup is
               untouched.
             </p>
-            <div className="modal-btns">
-              <button
-                className="modal-btn primary"
-                onClick={() => void finishOnboarding(false)}
-              >
-                Done
-              </button>
-            </div>
             <div className="ob-foot">
               <button className="modal-btn" onClick={() => setStep(step - 1)}>
                 Back
@@ -76,7 +105,12 @@ export function OnboardingModal() {
                   <span key={i} className={"ob-dot" + (i === step ? " on" : "")} />
                 ))}
               </div>
-              <span style={{ width: 64 }} />
+              <button
+                className="modal-btn primary"
+                onClick={() => void finishOnboarding(false)}
+              >
+                Done
+              </button>
             </div>
           </>
         ) : last ? (
@@ -123,7 +157,7 @@ export function OnboardingModal() {
               {current.title}
             </div>
             <p className="modal-text ob-body">{current.body}</p>
-            {current.diagram && <pre className="ob-diagram">{current.diagram}</pre>}
+            {current.diagram && <FlowDiagram />}
             <div className="ob-foot">
               {step > 0 ? (
                 <button className="modal-btn" onClick={() => setStep(step - 1)}>

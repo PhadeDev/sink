@@ -138,26 +138,6 @@ export function SettingsScreen() {
       <div className="screen-scroll" style={{ maxWidth: 720 }}>
         {error && <div className="error-banner" style={{ borderRadius: 8 }}>{error}</div>}
 
-        <div className="section-label">Devices</div>
-        <div className="card" style={{ padding: "var(--sp-2)" }}>
-          <DeviceRow
-            icon="speaker"
-            title="Default output"
-            sub="Where channels set to “System default” play"
-            devices={outputDevices}
-            current={defaults.output}
-            onPick={(name) => void pickDefault("output", name)}
-          />
-          <DeviceRow
-            icon="mic"
-            title="Default input"
-            sub="The microphone the Sink mic chain captures"
-            devices={inputDevices}
-            current={defaults.input}
-            onPick={(name) => void pickDefault("input", name)}
-          />
-        </div>
-
         <div className="section-label">Preferences</div>
         <div className="card" style={{ padding: "var(--sp-2)" }}>
           <div className="row">
@@ -190,10 +170,22 @@ export function SettingsScreen() {
               </Popover>
             </div>
           </div>
-        </div>
-
-        <div className="section-label">Startup</div>
-        <div className="card" style={{ padding: "var(--sp-2)" }}>
+          <DeviceRow
+            icon="speaker"
+            title="Default output"
+            sub="Where channels set to “System default” play"
+            devices={outputDevices}
+            current={defaults.output}
+            onPick={(name) => void pickDefault("output", name)}
+          />
+          <DeviceRow
+            icon="mic"
+            title="Default input"
+            sub="The microphone the Sink mic chain captures"
+            devices={inputDevices}
+            current={defaults.input}
+            onPick={(name) => void pickDefault("input", name)}
+          />
           <div className="row">
             <div className="ricon">
               <Ms name="rocket_launch" />

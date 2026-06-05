@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { TitleBar } from "./components/TitleBar/TitleBar";
 import { MixerBoard } from "./components/MixerBoard/MixerBoard";
 import { AppList } from "./components/AppList/AppList";
@@ -20,7 +21,12 @@ type NavId = (typeof NAV)[number]["id"] | "settings";
 export default function App() {
   useAudio();
   const [nav, setNav] = useState<NavId>("mixer");
+  const [version, setVersion] = useState("");
   const error = useMixerStore((s) => s.error);
+
+  useEffect(() => {
+    void getVersion().then(setVersion);
+  }, []);
 
   const current =
     nav === "settings"
@@ -57,6 +63,7 @@ export default function App() {
             <Ms name="settings" />
             <span className="nav-label">Settings</span>
           </button>
+          {version && <div className="rail-version">v{version}</div>}
         </nav>
 
         {nav === "mixer" ? (

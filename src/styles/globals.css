@@ -1463,18 +1463,59 @@ body,
   text-align: center;
   min-height: 44px;
 }
-.ob-diagram {
+/* signal-flow diagram: pill nodes + arrows, colored like the mixer */
+.ob-flow {
   align-self: center;
-  margin: 0;
-  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
   border-radius: var(--r-lg);
   background: var(--bg-main);
   border: 1px solid var(--border);
-  color: var(--fg-secondary);
-  font-family: inherit;
+}
+.ob-flow-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.ob-flow-branch {
+  /* start the tap under the Channels node */
+  padding-left: 86px;
+}
+.ob-flow-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   font-size: var(--fs-caption);
-  line-height: 1.8;
-  white-space: pre;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+}
+.ob-flow-node .ms {
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+.ob-flow-node.is-channel {
+  border-color: #2e2e55;
+  color: var(--accent-hover);
+}
+.ob-flow-node.is-channel .ms {
+  color: var(--accent-hover);
+}
+.ob-flow-node.is-mix {
+  border-color: #46350f;
+  color: var(--warning);
+}
+.ob-flow-node.is-mix .ms {
+  color: var(--warning);
+}
+.ob-flow-arrow {
+  font-size: 14px;
+  color: var(--fg-muted);
 }
 .ob-foot {
   display: flex;
@@ -1539,4 +1580,13 @@ body,
   height: 1px;
   background: var(--border);
   margin: var(--sp-1) var(--sp-2);
+}
+
+/* version tag at the bottom of the nav rail */
+.rail-version {
+  text-align: center;
+  font-size: 10px;
+  color: var(--fg-muted);
+  padding: var(--sp-2) 0 var(--sp-1);
+  user-select: text;
 }
