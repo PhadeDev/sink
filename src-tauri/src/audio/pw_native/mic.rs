@@ -154,11 +154,15 @@ impl MicStreams {
         let ring = Arc::new(Ring::new(4096));
 
         // ---- capture: hardware mic -> DSP -> ring ----
+        // NOT passive: this stream must hold the hardware mic running for
+        // as long as the chain is enabled. With passive links the source
+        // suspends the moment its last real consumer leaves (e.g. Discord
+        // switching from the raw mic to the virtual one) — and the chain
+        // starves exactly when someone starts using it.
         let mut capture_props = pw::properties::properties! {
             "media.type" => "Audio",
             "media.category" => "Capture",
             "node.name" => MIC_CAPTURE_NAME,
-            "node.passive" => "true",
             // Never let the session manager migrate this stream (e.g. when
             // the default source changes — it could land on sink_mic and
             // feed the chain its own output). Default-follow is handled by
@@ -242,11 +246,13 @@ impl MicStreams {
         let playback = pw::stream::StreamRc::new(
             core.clone(),
             MIC_PLAYBACK_NAME,
+            // NOT passive (see capture): the processed signal must reach
+            // sink_mic whenever the chain is up, regardless of who is —
+            // or isn't — capturing at this instant.
             pw::properties::properties! {
                 "media.type" => "Audio",
                 "media.category" => "Playback",
                 "node.name" => MIC_PLAYBACK_NAME,
-                "node.passive" => "true",
                 "node.autoconnect" => "false",
                 "node.dont-reconnect" => "true",
             },
