@@ -1073,7 +1073,12 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                         // Re-point streams that were capturing the old node
                         // (target.object by name survives the recreation —
                         // the session manager re-attaches them when the new
-                        // global appears).
+                        // global appears). Type stays None deliberately:
+                        // that's what `pw-metadata <id> target.object <name>`
+                        // sets, and WirePlumber matches the value against
+                        // serials first, node names second, regardless of
+                        // the annotation. Spa:Id (used for serial-based
+                        // moves elsewhere) would be wrong for a name.
                         if let Some(meta) = &s.metadata {
                             for id in &orphaned {
                                 meta.set_property(*id, "target.object", None, Some(MIC_NODE));

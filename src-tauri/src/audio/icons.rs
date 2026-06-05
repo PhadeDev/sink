@@ -281,7 +281,10 @@ pub fn resolve(
         return Resolved::default();
     };
 
-    let key = format!("{app_name}\0{binary:?}\0{icon_hint:?}");
+    // PID presence is part of the key (not the PID itself — it changes per
+    // run): a name-only resolution from history must not shadow the more
+    // accurate /proc-based one for a live stream, or vice versa.
+    let key = format!("{app_name}\0{binary:?}\0{icon_hint:?}\0{}", pid.is_some());
     if let Some(hit) = resolver.cache.get(&key) {
         return hit.clone();
     }

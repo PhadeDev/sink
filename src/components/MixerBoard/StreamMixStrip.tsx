@@ -126,9 +126,9 @@ export function BusStrip({ bus }: { bus: BusDef }) {
               onClick={() => setManaging(true)}
             >
               {bus.exclude
-                ? bus.channels.length === 0
+                ? carried.length === allNames.length
                   ? "all channels"
-                  : `all but ${bus.channels.length}`
+                  : `all but ${allNames.length - carried.length}`
                 : `${carried.length} ${carried.length === 1 ? "channel" : "channels"}`}
               <Ms name="expand_more" style={{ fontSize: 13 }} />
             </button>

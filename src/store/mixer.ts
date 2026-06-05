@@ -461,7 +461,8 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   addChannel: async (label, icon) => {
     try {
       await invoke("add_channel", { label, icon });
-      await Promise.all([get().fetchChannels(), get().fetchOutputs()]);
+      // Buses too: the master (and auto-include mixes) absorb the channel.
+      await Promise.all([get().fetchChannels(), get().fetchOutputs(), get().fetchBuses()]);
     } catch (e) {
       set({ error: String(e) });
     }
@@ -521,6 +522,9 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     }));
     try {
       await invoke("set_bus_members", { name, channels });
+      // The backend converts against its own channel set — sync up so the
+      // stored complement can't drift if channels changed mid-flight.
+      await get().fetchBuses();
     } catch (e) {
       set({ error: String(e) });
       await get().fetchBuses();
@@ -595,6 +599,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         get().fetchChannels(),
         get().fetchAppStreams(),
         get().fetchOutputs(),
+        get().fetchBuses(), // memberships dropped the channel
       ]);
     } catch (e) {
       set({ error: String(e) });

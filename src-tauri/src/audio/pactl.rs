@@ -369,7 +369,9 @@ impl AudioBackend for PactlBackend {
         // Replace any existing loopback for this channel — by asking the
         // server, not just our own table. A previous run that died without
         // teardown leaves its modules loaded, and stacking a fresh set on
-        // top plays the channel once per leftover.
+        // top plays the channel once per leftover. (This assumes a single
+        // Sink instance — sink names are deterministic, so two live
+        // instances would already be fighting over the nodes themselves.)
         {
             let mut loopbacks = self
                 .loopbacks
