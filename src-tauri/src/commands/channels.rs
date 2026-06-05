@@ -67,6 +67,25 @@ pub fn add_channel(
     Ok(())
 }
 
+/// Reorder the channel strips (cosmetic — no audio plumbing changes).
+#[tauri::command]
+pub fn reorder_channels(state: State<'_, AppState>, order: Vec<String>) -> Result<(), String> {
+    let defs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer
+            .channel_defs
+            .reorder(&order)
+            .map_err(|e| e.to_string())?;
+        // Keep the live strip list in the same order.
+        mixer
+            .channels
+            .sort_by_key(|c| order.iter().position(|n| n == &c.name).unwrap_or(usize::MAX));
+        crate::commands::profiles::autosave_active(&mixer);
+        mixer.channel_defs.clone()
+    };
+    defs.save().map_err(|e| e.to_string())
+}
+
 /// Change a channel's strip icon.
 #[tauri::command]
 pub fn set_channel_icon(

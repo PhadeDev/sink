@@ -160,6 +160,22 @@ impl Channels {
         Ok(())
     }
 
+    /// Reorder the channel set. `order` must contain exactly the current
+    /// sink names (it's a permutation, not an edit).
+    pub fn reorder(&mut self, order: &[String]) -> Result<(), SinkError> {
+        if order.len() != self.channels.len()
+            || !order.iter().all(|n| self.get(n).is_some())
+        {
+            return Err(SinkError::Config(
+                "reorder must list every existing channel exactly once".into(),
+            ));
+        }
+        self.channels.sort_by_key(|c| {
+            order.iter().position(|n| n == &c.name).unwrap_or(usize::MAX)
+        });
+        Ok(())
+    }
+
     pub fn remove(&mut self, name: &str) -> Result<(), SinkError> {
         if self.channels.len() <= 1 {
             return Err(SinkError::Config("at least one channel is required".into()));
@@ -207,6 +223,30 @@ mod tests {
         assert_eq!(d2.name, "sink_channel_2");
         // Whitespace-only labels are rejected outright.
         assert!(c.add("   ", None).is_err());
+    }
+
+    #[test]
+    fn reorder_is_a_strict_permutation() {
+        let mut c = Channels::default();
+        c.reorder(&[
+            "sink_music".into(),
+            "sink_game".into(),
+            "sink_system".into(),
+            "sink_chat".into(),
+        ])
+        .expect("reorders");
+        let names: Vec<&str> = c.channels.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, ["sink_music", "sink_game", "sink_system", "sink_chat"]);
+        // Wrong length and unknown names are rejected.
+        assert!(c.reorder(&["sink_game".into()]).is_err());
+        assert!(c
+            .reorder(&[
+                "sink_music".into(),
+                "sink_game".into(),
+                "sink_system".into(),
+                "sink_nope".into(),
+            ])
+            .is_err());
     }
 
     #[test]

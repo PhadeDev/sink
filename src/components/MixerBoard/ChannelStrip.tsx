@@ -14,9 +14,21 @@ import { VuMeter } from "./VuMeter";
 interface ChannelStripProps {
   channel: VirtualSink;
   appCount: number;
+  /** Drag-reorder wiring (owned by MixerBoard). */
+  dragging: boolean;
+  onGripDragStart: (e: React.DragEvent) => void;
+  onGripDragEnd: () => void;
+  onStripDragOver: (e: React.DragEvent) => void;
 }
 
-export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
+export function ChannelStrip({
+  channel,
+  appCount,
+  dragging,
+  onGripDragStart,
+  onGripDragEnd,
+  onStripDragOver,
+}: ChannelStripProps) {
   const setChannelVolume = useMixerStore((s) => s.setChannelVolume);
   const toggleMute = useMixerStore((s) => s.toggleMute);
   const level = useMixerStore((s) => s.levels[channel.name]);
@@ -47,7 +59,22 @@ export function ChannelStrip({ channel, appCount }: ChannelStripProps) {
   const amplitude = Math.max(level?.[0] ?? 0, level?.[1] ?? 0);
 
   return (
-    <div className={"strip" + (channel.muted ? " muted" : "")}>
+    <div
+      className={"strip" + (channel.muted ? " muted" : "") + (dragging ? " dragging" : "")}
+      onDragOver={onStripDragOver}
+      onDrop={(e) => e.preventDefault()}
+    >
+      {channelCount > 1 && (
+        <span
+          className="strip-grip"
+          draggable
+          title="Drag to reorder"
+          onDragStart={onGripDragStart}
+          onDragEnd={onGripDragEnd}
+        >
+          <Ms name="drag_indicator" />
+        </span>
+      )}
       {channelCount > 1 && (
         <button
           className="strip-x"

@@ -63,11 +63,15 @@ export function MixerBoard() {
   const micConfig = useMixerStore((s) => s.micConfig);
   const backendNative = useMixerStore((s) => s.backendNative);
 
+  const moveChannel = useMixerStore((s) => s.moveChannel);
+  const commitChannelOrder = useMixerStore((s) => s.commitChannelOrder);
+
   const [addingChannel, setAddingChannel] = useState(false);
   const [channelLabel, setChannelLabel] = useState("");
   const [channelIcon, setChannelIcon] = useState(ICON_CHOICES[0]);
   const [addingMix, setAddingMix] = useState(false);
   const [mixLabel, setMixLabel] = useState("");
+  const [draggingChannel, setDraggingChannel] = useState<string | null>(null);
 
   if (channels.length === 0) {
     return (
@@ -147,6 +151,22 @@ export function MixerBoard() {
                 key={channel.name}
                 channel={channel}
                 appCount={counts.get(channel.name) ?? 0}
+                dragging={draggingChannel === channel.name}
+                onGripDragStart={(e) => {
+                  setDraggingChannel(channel.name);
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", channel.name);
+                }}
+                onGripDragEnd={() => {
+                  setDraggingChannel(null);
+                  void commitChannelOrder();
+                }}
+                onStripDragOver={(e) => {
+                  if (draggingChannel && draggingChannel !== channel.name) {
+                    e.preventDefault();
+                    moveChannel(draggingChannel, channel.name);
+                  }
+                }}
               />
             ))}
           </MixGroup>

@@ -53,6 +53,7 @@ pub fn run() {
             commands::apps::set_app_assignment,
             commands::channels::add_channel,
             commands::channels::rename_channel,
+            commands::channels::reorder_channels,
             commands::channels::remove_channel,
             commands::channels::set_channel_icon,
             commands::buses::list_buses,

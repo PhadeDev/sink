@@ -497,6 +497,41 @@ body,
 .strip-x .ms {
   font-size: 14px;
 }
+/* drag-reorder grip: mirrors the delete ×, top-left */
+.strip-grip {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 4;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-sm);
+  background: var(--bg-active);
+  color: var(--fg-muted);
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.strip:hover .strip-grip {
+  opacity: 1;
+}
+.strip-grip:hover {
+  background: var(--bg-surface-hover);
+  color: var(--fg-primary);
+}
+.strip-grip:active {
+  cursor: grabbing;
+}
+.strip-grip .ms {
+  font-size: 14px;
+}
+.strip.dragging {
+  opacity: 0.55;
+  border-style: dashed;
+  border-color: var(--accent);
+}
 .strip-name-editable {
   cursor: text;
   border-radius: var(--r-xs);

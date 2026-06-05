@@ -69,6 +69,10 @@ interface MixerStore {
   addChannel: (label: string, icon: string | null) => Promise<void>;
   renameChannel: (sinkName: string, label: string) => Promise<void>;
   removeChannel: (sinkName: string) => Promise<void>;
+  /** Visual-only reorder while dragging a strip. */
+  moveChannel: (from: string, to: string) => void;
+  /** Persist the current strip order (called on drag end). */
+  commitChannelOrder: () => Promise<void>;
   setChannelIcon: (sinkName: string, icon: string) => Promise<void>;
   /** User-defined mixes (record buses). */
   buses: BusDef[];
@@ -620,6 +624,29 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     }));
     try {
       await invoke("rename_channel", { sinkName, label });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchChannels();
+    }
+  },
+
+  // Visual-only move while dragging; commitChannelOrder persists on drop.
+  moveChannel: (from, to) => {
+    set((s) => {
+      const arr = [...s.channels];
+      const fi = arr.findIndex((c) => c.name === from);
+      const ti = arr.findIndex((c) => c.name === to);
+      if (fi < 0 || ti < 0 || fi === ti) return {};
+      const [moved] = arr.splice(fi, 1);
+      arr.splice(ti, 0, moved);
+      return { channels: arr };
+    });
+  },
+
+  commitChannelOrder: async () => {
+    const order = get().channels.map((c) => c.name);
+    try {
+      await invoke("reorder_channels", { order });
     } catch (e) {
       set({ error: String(e) });
       await get().fetchChannels();
