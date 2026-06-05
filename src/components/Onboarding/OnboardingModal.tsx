@@ -6,33 +6,29 @@ interface Step {
   icon: string;
   title: string;
   body: string;
+  /** Monospace signal-flow sketch shown under the body. */
+  diagram?: string;
 }
 
+// Three short cards: the mental model first (as a picture), then the two
+// things you can't discover just by looking at the screen.
 const STEPS: Step[] = [
   {
     icon: "graphic_eq",
-    title: "Welcome to Sink",
-    body: "Sink gives every app its own place on a mixing board. Route games, voice chat, music and everything else into separate channels, then control each one independently — volume, mute, even which speakers or headphones it plays on.",
-  },
-  {
-    icon: "tune",
-    title: "Channels",
-    body: "The Mixer screen is built from channels — virtual outputs with a fader, mute and live meters. Each channel can play to its own output device or follow your system default. Add, rename and re-icon them to match how you listen.",
+    title: "Your sound, on a board",
+    body: "Every app's audio lands on a channel you control. Send each channel to your ears — and tap any group as a recording.",
+    diagram:
+      " apps ─► channels ─► your ears\n              └────► a Mix ─► OBS",
   },
   {
     icon: "grid_view",
-    title: "Apps",
-    body: "Running apps show up on the Apps screen automatically. Pick a channel for each one and Sink remembers — the next time the app makes sound, it lands on the same channel. Apps you don't care about can be ignored.",
-  },
-  {
-    icon: "podcasts",
-    title: "Mixes",
-    body: "Mixes are capturable sources for OBS and other recorders. The Master Mix always carries every channel; add custom mixes to record subsets — for example everything except your music.",
+    title: "Sort your apps",
+    body: "New apps appear on their own. Drop each onto a channel — game, chat, music — and Sink keeps it there next time.",
   },
   {
     icon: "mic",
-    title: "Microphone",
-    body: "The Mic screen builds a processed virtual microphone: noise gate, compressor and limiter between your hardware mic and the apps that hear you. Select it by name in Discord, OBS or anything else — and listen to yourself while you tune it.",
+    title: "A better mic",
+    body: "Sink builds a cleaned-up mic — gated, compressed, leveled. Pick it in Discord or OBS, and hear yourself while you dial it in.",
   },
 ];
 
@@ -52,24 +48,24 @@ export function OnboardingModal() {
       <div className="modal ob-modal" role="dialog" aria-label="Welcome to Sink">
         {last ? (
           <>
-            <div className="modal-title">Pick your starting point</div>
+            <div className="modal-title">How do you want to start?</div>
             <p className="modal-text">
-              You can add, rename and delete channels at any time — this just
-              sets up the first board.
+              Either way you can add, rename or delete channels whenever —
+              this just lays out your first board.
             </p>
             <div className="ob-choices">
               <button className="ob-choice" onClick={() => void finishOnboarding(false)}>
                 <Ms name="dashboard" />
-                <div className="ob-choice-title">Default setup</div>
+                <div className="ob-choice-title">Set up a board for me</div>
                 <div className="ob-choice-sub">
-                  Game, Chat, Music and System channels — ready to route into
+                  Game, Chat, Music and System — ready to drop apps onto
                 </div>
               </button>
               <button className="ob-choice" onClick={() => void finishOnboarding(true)}>
                 <Ms name="check_box_outline_blank" />
-                <div className="ob-choice-title">Start blank</div>
+                <div className="ob-choice-title">I'll build my own</div>
                 <div className="ob-choice-sub">
-                  A single Main channel — build your own board from scratch
+                  One Main channel — add the rest as you go
                 </div>
               </button>
             </div>
@@ -94,6 +90,7 @@ export function OnboardingModal() {
               {current.title}
             </div>
             <p className="modal-text ob-body">{current.body}</p>
+            {current.diagram && <pre className="ob-diagram">{current.diagram}</pre>}
             <div className="ob-foot">
               {step > 0 ? (
                 <button className="modal-btn" onClick={() => setStep(step - 1)}>

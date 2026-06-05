@@ -1443,6 +1443,7 @@ body,
 /* ---------- First-run tutorial ---------- */
 .ob-modal {
   width: min(440px, calc(100vw - 48px));
+  min-height: 330px;
 }
 .ob-icon {
   align-self: center;
@@ -1460,14 +1461,28 @@ body,
 }
 .ob-body {
   text-align: center;
-  min-height: 88px;
+  min-height: 44px;
+}
+.ob-diagram {
+  align-self: center;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  color: var(--fg-secondary);
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  line-height: 1.8;
+  white-space: pre;
 }
 .ob-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  margin-top: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-2);
 }
 .ob-dots {
   display: flex;

@@ -151,7 +151,7 @@ export function MixerBoard() {
             icon="podcasts"
             label="Mixes"
             count={`${buses.length}`}
-            hint="Mixes: capturable sources for OBS/recorders. Master carries everything; add mixes for subsets."
+            hint="Recordable copies of your channels. In OBS, add a mix as an audio input (mic/aux) — not Desktop Audio."
             onAdd={
               buses.filter((b) => b.name !== MASTER_BUS).length < MAX_BUSES
                 ? () => setAddingMix(true)
