@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMixerStore } from "../../store/mixer";
 import { Ms } from "../Icons";
 
@@ -35,8 +35,14 @@ const STEPS: Step[] = [
 /** First-run tutorial: one card per concept, then a starting-point choice. */
 export function OnboardingModal() {
   const show = useMixerStore((s) => s.showOnboarding);
+  const replay = useMixerStore((s) => s.onboardingReplay);
   const finishOnboarding = useMixerStore((s) => s.finishOnboarding);
   const [step, setStep] = useState(0);
+
+  // Replays start from the first card again.
+  useEffect(() => {
+    if (show) setStep(0);
+  }, [show]);
 
   if (!show) return null;
 
@@ -46,7 +52,34 @@ export function OnboardingModal() {
   return (
     <div className="modal-scrim">
       <div className="modal ob-modal" role="dialog" aria-label="Welcome to Sink">
-        {last ? (
+        {last && replay ? (
+          <>
+            <div className="modal-title">That's the tour</div>
+            <p className="modal-text">
+              Channels, apps and the mic are all live — your setup is
+              untouched.
+            </p>
+            <div className="modal-btns">
+              <button
+                className="modal-btn primary"
+                onClick={() => void finishOnboarding(false)}
+              >
+                Done
+              </button>
+            </div>
+            <div className="ob-foot">
+              <button className="modal-btn" onClick={() => setStep(step - 1)}>
+                Back
+              </button>
+              <div className="ob-dots">
+                {[...STEPS, null].map((_, i) => (
+                  <span key={i} className={"ob-dot" + (i === step ? " on" : "")} />
+                ))}
+              </div>
+              <span style={{ width: 64 }} />
+            </div>
+          </>
+        ) : last ? (
           <>
             <div className="modal-title">How do you want to start?</div>
             <p className="modal-text">

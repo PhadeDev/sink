@@ -92,8 +92,12 @@ interface MixerStore {
   backendNative: boolean | null;
   /** First-run tutorial visible. */
   showOnboarding: boolean;
+  /** True when the tutorial was reopened from Settings (no setup choice). */
+  onboardingReplay: boolean;
   /** Close the tutorial; blank = collapse to a single starter channel. */
   finishOnboarding: (blank: boolean) => Promise<void>;
+  /** Reopen the tutorial (view-only — no starting-point choice). */
+  replayOnboarding: () => void;
 
   /** Create the virtual sinks and load initial state. */
   initialize: () => Promise<void>;
@@ -139,9 +143,14 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   initialized: false,
   backendNative: null,
   showOnboarding: false,
+  onboardingReplay: false,
+
+  replayOnboarding: () => set({ showOnboarding: true, onboardingReplay: true }),
 
   finishOnboarding: async (blank) => {
-    set({ showOnboarding: false });
+    const replay = get().onboardingReplay;
+    set({ showOnboarding: false, onboardingReplay: false });
+    if (replay) return; // view-only: nothing to persist or change
     try {
       await invoke("set_onboarded");
       if (blank) {

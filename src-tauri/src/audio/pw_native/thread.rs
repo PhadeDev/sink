@@ -347,7 +347,23 @@ fn on_global(
                             ensure_all_links(&state_m);
                         }
                     } else if key == Some("default.audio.source") {
-                        state_m.borrow_mut().default_source_name = parse_name(value);
+                        let name = parse_name(value);
+                        let rebuild = {
+                            let mut s = state_m.borrow_mut();
+                            let changed = s.default_source_name != name;
+                            s.default_source_name = name;
+                            // A follow-default mic chain is pinned to the
+                            // resolved device (dont-reconnect), so it
+                            // tracks default changes by rebuilding.
+                            changed
+                                && s.mic_config.enabled
+                                && s.mic_config.input_device.is_none()
+                                && s.mic_streams.is_some()
+                        };
+                        if rebuild {
+                            state_m.borrow_mut().mic_streams = None;
+                            build_mic_streams(&state_m);
+                        }
                     }
                     0
                 })
@@ -513,7 +529,14 @@ fn build_mic_streams(state: &Rc<RefCell<State>>) {
     if !s.mic_config.enabled {
         return;
     }
-    let mic_target = s.mic_config.input_device.clone();
+    // Resolve "follow default" to the actual hardware source at build
+    // time — the capture must be pinned (and must never point at our own
+    // virtual mic, or the chain would eat its own output).
+    let mic_target = s.mic_config.input_device.clone().or_else(|| {
+        s.default_source_name
+            .clone()
+            .filter(|name| name != MIC_NODE)
+    });
     let Some(levels) = s.levels.clone() else { return };
     match MicStreams::new(&core, &s.mic_config, mic_target.as_deref(), levels) {
         Ok(streams) => {
@@ -965,7 +988,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             let _ = reply.send(Ok(()));
         }
         Cmd::SetMicConfig { config, reply } => {
-            let (needs_create, needs_destroy, needs_rebuild, source_exists) = {
+            let (needs_create, needs_destroy, needs_rebuild, source_exists, orphaned) = {
                 let mut s = state.borrow_mut();
                 let prev = s.mic_config.clone();
                 s.mic_config = config.clone();
@@ -980,7 +1003,24 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 let needs_recreate = config.enabled
                     && s.mic_source.is_some()
                     && prev.output_label != config.output_label;
+                let mut orphaned: Vec<u32> = Vec::new();
                 if needs_recreate {
+                    // Remember who was capturing the mic (Discord, OBS …) —
+                    // destroying the node drops them onto the fallback
+                    // source, and they'd silently stay there.
+                    if let Some(mic) = s.node_by_name(MIC_NODE) {
+                        let mic_id = mic.id;
+                        orphaned = s
+                            .links
+                            .values()
+                            .filter(|(out, _)| *out == mic_id)
+                            .map(|(_, input)| *input)
+                            // Tracked nodes here are devices (monitor
+                            // targets) — foreign capture streams aren't in
+                            // the mirror.
+                            .filter(|input| !s.nodes.contains_key(input))
+                            .collect();
+                    }
                     s.mic_streams = None;
                     s.mic_links.clear();
                     if let Some(proxy) = s.mic_source.take() {
@@ -996,7 +1036,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     && s.mic_streams.is_some()
                     && prev.input_device != config.input_device;
                 let source_exists = s.node_by_name(MIC_NODE).is_some();
-                (needs_create, needs_destroy, needs_rebuild, source_exists)
+                (needs_create, needs_destroy, needs_rebuild, source_exists, orphaned)
             };
 
             if needs_destroy {
@@ -1028,7 +1068,17 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     },
                 ) {
                     Ok(proxy) => {
-                        state.borrow_mut().mic_source = Some(proxy);
+                        let mut s = state.borrow_mut();
+                        s.mic_source = Some(proxy);
+                        // Re-point streams that were capturing the old node
+                        // (target.object by name survives the recreation —
+                        // the session manager re-attaches them when the new
+                        // global appears).
+                        if let Some(meta) = &s.metadata {
+                            for id in &orphaned {
+                                meta.set_property(*id, "target.object", None, Some(MIC_NODE));
+                            }
+                        }
                         // Streams attach when the global appears (on_node).
                     }
                     Err(e) => {

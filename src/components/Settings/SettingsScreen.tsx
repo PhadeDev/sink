@@ -87,6 +87,7 @@ export function SettingsScreen() {
   const [error, setError] = useState<string | null>(null);
   const outputDevices = useMixerStore((s) => s.outputDevices);
   const inputDevices = useMixerStore((s) => s.inputDevices);
+  const replayOnboarding = useMixerStore((s) => s.replayOnboarding);
 
   useEffect(() => {
     void invoke<boolean>("get_autostart").then(setAutostart);
@@ -235,6 +236,18 @@ export function SettingsScreen() {
               <div className="rtitle">Sink {version}</div>
               <div className="rsub">GPL-3.0 · config in ~/.config/sink</div>
             </div>
+          </div>
+          <div className="row">
+            <div className="ricon">
+              <Ms name="school" />
+            </div>
+            <div className="rmain">
+              <div className="rtitle">Tutorial</div>
+              <div className="rsub">Replay the first-run tour</div>
+            </div>
+            <button className="select" onClick={replayOnboarding}>
+              <span>Replay</span>
+            </button>
           </div>
           <div className="row">
             <div className="ricon">

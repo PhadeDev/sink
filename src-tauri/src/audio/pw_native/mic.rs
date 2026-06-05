@@ -159,6 +159,11 @@ impl MicStreams {
             "media.category" => "Capture",
             "node.name" => MIC_CAPTURE_NAME,
             "node.passive" => "true",
+            // Never let the session manager migrate this stream (e.g. when
+            // the default source changes — it could land on sink_mic and
+            // feed the chain its own output). Default-follow is handled by
+            // rebuilding with a resolved hardware target instead.
+            "node.dont-reconnect" => "true",
         };
         if let Some(target) = mic_target {
             capture_props.insert("target.object", target);
