@@ -104,6 +104,10 @@ struct State {
     owned_sinks: HashMap<String, Node>,
     /// Sinks that existed before us (e.g. leftover pactl modules): name -> global id.
     adopted_sinks: HashMap<String, u32>,
+    /// Nodes that must stay alive: name -> (label, kind 0=sink 1=bus 2=mic).
+    /// If one vanishes without us destroying it (another instance dying,
+    /// a PipeWire restart, wpctl) it gets recreated on the spot.
+    desired: HashMap<String, (String, u8)>,
     /// Create requests waiting for the sink's global to appear.
     pending_creates: HashMap<String, Vec<Reply<()>>>,
     /// Live meter capture streams per virtual sink name.
@@ -213,26 +217,80 @@ fn setup_and_run(
         .global_remove({
             let state = state.clone();
             move |id| {
-                let removed_sink = {
+                enum Heal {
+                    Nothing,
+                    Relink,
+                    Recreate(String, String, u8),
+                }
+                let heal = {
                     let mut s = state.borrow_mut();
                     s.links.remove(&id);
                     s.ports.remove(&id);
-                    match s.nodes.remove(&id) {
-                        Some(node) if node.media_class == SINK_CLASS => {
-                            if let Some(name) = node.props.get("node.name") {
-                                let name = name.clone();
-                                s.meters.remove(&name);
-                                s.adopted_sinks.remove(&name);
+                    let Some(node) = s.nodes.remove(&id) else {
+                        return;
+                    };
+                    let name = node.props.get("node.name").cloned().unwrap_or_default();
+                    if node.media_class == SINK_CLASS {
+                        s.meters.remove(&name);
+                        s.adopted_sinks.remove(&name);
+                    }
+                    match s.desired.get(&name).cloned() {
+                        Some((label, kind)) => {
+                            // Drop any dangling proxy so the heal isn't
+                            // blocked by a corpse.
+                            match kind {
+                                0 => {
+                                    s.owned_sinks.remove(&name);
+                                }
+                                1 => {
+                                    s.bus_sources.remove(&name);
+                                }
+                                _ => {}
                             }
-                            true
+                            // A deliberate recreate (mic rename) already has
+                            // a fresh proxy/node — don't double up.
+                            let already_back = match kind {
+                                2 => s.mic_source.is_some(),
+                                _ => s.node_by_name(&name).is_some(),
+                            };
+                            if already_back {
+                                Heal::Relink
+                            } else {
+                                s.meters.remove(&name);
+                                Heal::Recreate(name, label, kind)
+                            }
                         }
-                        _ => false,
+                        // An output device vanished: relink so affected
+                        // channels fail over to the default.
+                        None if node.media_class == SINK_CLASS => Heal::Relink,
+                        None => Heal::Nothing,
                     }
                 };
-                // An output device vanished (or one of our sinks died):
-                // relink so affected channels fail over to the default.
-                if removed_sink {
-                    ensure_all_links(&state);
+                match heal {
+                    Heal::Recreate(name, label, kind) => {
+                        eprintln!("sink: {name} vanished externally — recreating");
+                        if let Some(core) = CORE.with(|c| c.borrow().clone()) {
+                            match create_node_object(&core, &name, &label, kind) {
+                                Ok(proxy) => {
+                                    let mut s = state.borrow_mut();
+                                    match kind {
+                                        0 => {
+                                            s.owned_sinks.insert(name, proxy);
+                                        }
+                                        1 => {
+                                            s.bus_sources.insert(name, proxy);
+                                        }
+                                        _ => s.mic_source = Some(proxy),
+                                    }
+                                }
+                                Err(e) => eprintln!("sink: recreate {name} failed: {e}"),
+                            }
+                        }
+                        ensure_all_links(&state);
+                        ensure_mic_links(&state);
+                    }
+                    Heal::Relink => ensure_all_links(&state),
+                    Heal::Nothing => {}
                 }
             }
         })
@@ -782,13 +840,37 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
     }
 }
 
+/// The three virtual node shapes we own (kind 0=channel sink, 1=mix bus,
+/// 2=virtual mic). The heal path mirrors the create handlers with this.
+fn create_node_object(
+    core: &CoreRc,
+    name: &str,
+    label: &str,
+    kind: u8,
+) -> Result<Node, pw::Error> {
+    let class = if kind == 0 { SINK_CLASS } else { VIRTUAL_SOURCE_CLASS };
+    let position = if kind == 2 { "[ MONO ]" } else { "[ FL FR ]" };
+    let mut props = pw::properties::properties! {
+        "factory.name" => "support.null-audio-sink",
+        "node.name" => name,
+        "node.description" => label,
+        "media.class" => class,
+        "audio.position" => position,
+    };
+    if kind == 0 {
+        props.insert("monitor.channel-volumes", "true");
+    }
+    core.create_object::<Node>("adapter", &props)
+}
+
 fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
     match cmd {
         Cmd::CreateSink { name, label, reply } => {
             let mut s = state.borrow_mut();
             if s.node_by_name(&name).is_some() {
                 // Already exists (e.g. leftover from a previous run) — the
-                // registry handler has adopted it.
+                // registry handler has adopted it. Still ours to keep alive.
+                s.desired.insert(name, (label, 0));
                 let _ = reply.send(Ok(()));
                 return;
             }
@@ -817,6 +899,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 // reply fires when the global appears in the registry.
                 Ok(proxy) => {
                     s.owned_sinks.insert(name.clone(), proxy);
+                    s.desired.insert(name.clone(), (label, 0));
                     s.pending_creates.entry(name).or_default().push(reply);
                 }
                 Err(e) => {
@@ -826,6 +909,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         }
         Cmd::DestroySink { name, reply } => {
             let mut s = state.borrow_mut();
+            s.desired.remove(&name);
             s.meters.remove(&name);
             s.channel_links.remove(&name);
             s.bus_links.retain(|(_, ch), _| ch != &name);
@@ -925,7 +1009,8 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         Cmd::CreateBus { name, label, reply } => {
             let mut s = state.borrow_mut();
             if s.bus_sources.contains_key(&name) || s.node_by_name(&name).is_some() {
-                let _ = reply.send(Ok(())); // already there (e.g. adopted)
+                s.desired.insert(name, (label, 1)); // adopted — keep alive
+                let _ = reply.send(Ok(()));
                 return;
             }
             let Some(core) = CORE.with(|c| c.borrow().clone()) else {
@@ -943,6 +1028,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 },
             ) {
                 Ok(proxy) => {
+                    s.desired.insert(name.clone(), (label, 1));
                     s.bus_sources.insert(name, proxy);
                     let _ = reply.send(Ok(()));
                 }
@@ -953,6 +1039,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         }
         Cmd::DestroyBus { name, reply } => {
             let mut s = state.borrow_mut();
+            s.desired.remove(&name);
             s.meters.remove(&name);
             s.bus_members.remove(&name);
             s.bus_links.retain(|(bus, _), _| bus != &name);
@@ -1041,6 +1128,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
 
             if needs_destroy {
                 let mut s = state.borrow_mut();
+                s.desired.remove(MIC_NODE);
                 s.mic_streams = None;
                 s.mic_links.clear();
                 if let Some(proxy) = s.mic_source.take() {
@@ -1070,6 +1158,8 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     Ok(proxy) => {
                         let mut s = state.borrow_mut();
                         s.mic_source = Some(proxy);
+                        s.desired
+                            .insert(MIC_NODE.to_string(), (config.output_label.clone(), 2));
                         // Re-point streams that were capturing the old node
                         // (target.object by name survives the recreation —
                         // the session manager re-attaches them when the new
