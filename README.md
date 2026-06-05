@@ -23,7 +23,9 @@ processed virtual microphone for voice chat.
   custom mixes can carry "everything except music" and stay current as
   channels change. In OBS, add a mix as an audio input — not Desktop Audio.
 - **Microphone** — noise gate, compressor and limiter into a virtual mic
-  you select in Discord or OBS
+  you select in Discord or OBS. Pairs well with
+  [NoiseTorch](https://github.com/noisetorch/NoiseTorch) on the input for
+  noise suppression before the chain.
 - **Profiles** — save and switch full layouts from the tray
 
 ![Mic](docs/mic.png)

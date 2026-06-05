@@ -242,6 +242,23 @@ export function MicScreen() {
                 />
               )}
             </div>
+
+            <div className="mic-tip">
+              <Ms name="lightbulb" />
+              <span>
+                Tip: running{" "}
+                <a
+                  href="https://github.com/noisetorch/NoiseTorch"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  NoiseTorch
+                </a>{" "}
+                in front of Sink removes background noise before this chain —
+                pick its virtual mic as the Input above and the gate gets a
+                much cleaner signal to work with.
+              </span>
+            </div>
         </div>
       </div>
     </div>

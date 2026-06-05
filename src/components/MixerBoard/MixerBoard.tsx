@@ -57,6 +57,7 @@ export function MixerBoard() {
   const channels = useMixerStore((s) => s.channels);
   const buses = useMixerStore((s) => s.buses);
   const appStreams = useMixerStore((s) => s.appStreams);
+  const seenApps = useMixerStore((s) => s.seenApps);
   const addChannel = useMixerStore((s) => s.addChannel);
   const addBus = useMixerStore((s) => s.addBus);
   const micConfig = useMixerStore((s) => s.micConfig);
@@ -78,12 +79,21 @@ export function MixerBoard() {
     );
   }
 
-  // Apps routed to each channel, for the strip header.
+  // Apps belonging to each channel, for the strip header. Mirrors the
+  // membership popover: live streams routed there plus remembered (offline)
+  // assignments — "3 apps" should match the 3 checked rows.
   const counts = new Map<string, number>();
+  const counted = new Set<string>();
   for (const stream of appStreams) {
+    counted.add(`${stream.match_prop}\0${stream.match_value}`);
     if (stream.assigned_sink) {
       counts.set(stream.assigned_sink, (counts.get(stream.assigned_sink) ?? 0) + 1);
     }
+  }
+  for (const app of seenApps) {
+    const key = `${app.match_prop}\0${app.match_value}`;
+    if (app.ignored || counted.has(key) || !app.assigned_sink) continue;
+    counts.set(app.assigned_sink, (counts.get(app.assigned_sink) ?? 0) + 1);
   }
 
   const closeChannelModal = () => {

@@ -249,6 +249,9 @@ body,
   padding: var(--sp-3) 0;
   gap: 2px;
 }
+.rail-spacer {
+  flex: 1;
+}
 .nav-item {
   position: relative;
   display: flex;
@@ -1589,4 +1592,25 @@ body,
   color: var(--fg-muted);
   padding: var(--sp-2) 0 var(--sp-1);
   user-select: text;
+}
+
+/* mic screen tip line */
+.mic-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--border);
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+}
+.mic-tip .ms {
+  font-size: 16px;
+  color: var(--warning);
+  flex: 0 0 auto;
+}
+.mic-tip a {
+  color: var(--accent-hover);
 }
