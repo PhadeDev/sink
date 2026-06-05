@@ -33,8 +33,33 @@ processed virtual microphone for voice chat.
 
 ## Install
 
-Download from [Releases](https://github.com/NC1107/sink/releases):
-AppImage (portable), .deb, or .rpm.
+Grab the latest from [Releases](https://github.com/NC1107/sink/releases).
+
+**Fedora / openSUSE**
+
+```bash
+sudo dnf install ./sink-*.x86_64.rpm
+```
+
+**Debian / Ubuntu / Mint**
+
+```bash
+sudo apt install ./sink_*_amd64.deb
+```
+
+Both install the app properly — launcher entry, icon, uninstall through
+your package manager.
+
+**Any other distro — AppImage (portable, no root)**
+
+```bash
+chmod +x sink_*_amd64.AppImage
+./sink_*_amd64.AppImage
+```
+
+To get a launcher entry for an AppImage, use
+[Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or
+AppImageLauncher.
 
 Requires PipeWire with `pipewire-pulse` and WirePlumber 0.5+ (the default
 on most current distros).
