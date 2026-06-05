@@ -215,6 +215,10 @@ pub struct AppStream {
     /// Resolved absolute icon file path (desktop-entry based), ready for
     /// the asset protocol. Filled in by the command layer.
     pub icon_path: Option<String>,
+    /// Producing process id — unlocks /proc-based desktop-entry lookup
+    /// (cgroup scope, flatpak info, exe path) for icon resolution.
+    #[serde(default)]
+    pub pid: Option<u32>,
     /// Name of the virtual sink the stream is routed to, if it is one of ours.
     pub assigned_sink: Option<String>,
     pub volume_percent: u8,

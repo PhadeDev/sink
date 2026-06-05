@@ -32,10 +32,12 @@ pub fn get_seen_apps(state: State<'_, AppState>) -> Result<Vec<SeenApp>, String>
         .map(|entry| {
             let binary = (entry.match_prop == "application.process.binary")
                 .then_some(entry.match_value.as_str());
+            // History entries have no live process — name-based lookup only.
             let resolved = crate::audio::icons::resolve(
                 &entry.display_name,
                 binary,
                 entry.icon_name.as_deref(),
+                None,
             );
             SeenApp {
             match_prop: entry.match_prop.clone(),

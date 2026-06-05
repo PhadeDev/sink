@@ -845,6 +845,10 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                         alias: None,
                         icon_name: n.props.get("application.icon-name").cloned(),
                         icon_path: None,
+                        pid: n
+                            .props
+                            .get("application.process.id")
+                            .and_then(|v| v.parse().ok()),
                         assigned_sink: s
                             .sink_of_stream(n.id)
                             .and_then(|sink| sink.props.get("node.name"))

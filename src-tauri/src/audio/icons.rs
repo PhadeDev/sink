@@ -11,6 +11,9 @@ use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone)]
 struct DesktopEntry {
+    /// Desktop-file id: the file stem, lowercased (e.g. "org.kde.dolphin",
+    /// "spotify"). What systemd scopes and flatpak ids point at.
+    id: String,
     /// Display name, e.g. "Spotify".
     name: String,
     name_lower: String,
@@ -119,12 +122,93 @@ fn parse_desktop_file(path: &Path) -> Option<DesktopEntry> {
             .map(|f| f.to_string_lossy().to_lowercase())
     });
     Some(DesktopEntry {
+        id: path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_lowercase())
+            .unwrap_or_default(),
         name_lower: name.to_lowercase(),
         name,
         icon,
         exec_base,
         wm_class_lower: wm_class.map(|w| w.to_lowercase()),
     })
+}
+
+/// Desktop-id candidates for a live process, most reliable first. Linux
+/// binaries don't embed icons — the icon belongs to the app's .desktop
+/// entry, so identifying a stream's icon means mapping PID → desktop id
+/// through the fingerprints the system leaves on the process.
+fn desktop_id_candidates(pid: u32) -> Vec<String> {
+    let mut out = Vec::new();
+
+    // 1. systemd app units: desktop launchers run apps in cgroups named
+    //    app[-<launcher>]-<DesktopID>-<rand>.scope or
+    //    app-<DesktopID>@<uuid>.service (e.g. app-discord@1a2b….service).
+    if let Ok(cgroup) = fs::read_to_string(format!("/proc/{pid}/cgroup")) {
+        if let Some(unit) = cgroup
+            .lines()
+            .filter_map(|l| l.rsplit('/').next())
+            .find(|seg| {
+                seg.starts_with("app-") && (seg.ends_with(".scope") || seg.ends_with(".service"))
+            })
+        {
+            let token = unit
+                .trim_start_matches("app-")
+                .trim_end_matches(".scope")
+                .trim_end_matches(".service");
+            // Drop the instance suffix: @uuid, or a trailing -random part.
+            let token = match token.split_once('@') {
+                Some((before, _)) => before,
+                None => match token.rfind('-') {
+                    Some(i) if token[i + 1..].chars().all(|c| c.is_ascii_alphanumeric()) => {
+                        &token[..i]
+                    }
+                    _ => token,
+                },
+            };
+            // systemd escapes '-' inside unit names as \x2d.
+            let token = token.replace("\\x2d", "-").to_lowercase();
+            if !token.is_empty() {
+                out.push(token.clone());
+                // And without a launcher prefix (app-gnome-spotify-…).
+                if let Some((_, rest)) = token.split_once('-') {
+                    out.push(rest.to_string());
+                }
+            }
+        }
+    }
+
+    // 2. Flatpak sandbox: the app id sits at the sandbox root.
+    if let Ok(info) = fs::read_to_string(format!("/proc/{pid}/root/.flatpak-info")) {
+        if let Some(name) = info.lines().find_map(|l| l.strip_prefix("name=")) {
+            out.push(name.trim().to_lowercase());
+        }
+    }
+
+    // 3. GIO stamps processes launched from a menu/dock with the exact
+    //    .desktop file (inherited by children — which is what we want for
+    //    audio helper processes).
+    if let Ok(environ) = fs::read(format!("/proc/{pid}/environ")) {
+        for var in environ.split(|b| *b == 0) {
+            if let Some(value) = var.strip_prefix(b"GIO_LAUNCHED_DESKTOP_FILE=".as_slice()) {
+                let path = String::from_utf8_lossy(value);
+                if let Some(stem) = Path::new(path.as_ref()).file_stem() {
+                    out.push(stem.to_string_lossy().to_lowercase());
+                }
+            }
+        }
+    }
+
+    out
+}
+
+/// The real executable basename — resolves wrapper scripts and symlinks
+/// (an "electron" stream whose exe is /opt/Slack/slack, say).
+fn exe_basename(pid: u32) -> Option<String> {
+    fs::read_link(format!("/proc/{pid}/exe"))
+        .ok()?
+        .file_name()
+        .map(|f| f.to_string_lossy().to_lowercase())
 }
 
 fn load_desktops() -> Vec<DesktopEntry> {
@@ -181,7 +265,12 @@ fn icon_name_to_path(name: &str) -> Option<String> {
 ///
 /// `binary` is the process binary when the identity came from it;
 /// `icon_hint` is the stream's application.icon-name property.
-pub fn resolve(app_name: &str, binary: Option<&str>, icon_hint: Option<&str>) -> Resolved {
+pub fn resolve(
+    app_name: &str,
+    binary: Option<&str>,
+    icon_hint: Option<&str>,
+    pid: Option<u32>,
+) -> Resolved {
     let resolver = RESOLVER.get_or_init(|| {
         Mutex::new(Resolver {
             desktops: load_desktops(),
@@ -199,11 +288,32 @@ pub fn resolve(app_name: &str, binary: Option<&str>, icon_hint: Option<&str>) ->
 
     let app_lower = app_name.to_lowercase();
     let binary_lower = binary.map(str::to_lowercase);
-    let desktop = resolver.desktops.iter().find(|d| {
-        d.wm_class_lower.as_deref() == Some(app_lower.as_str())
-            || (binary_lower.is_some() && d.exec_base == binary_lower)
-            || d.name_lower == app_lower
-            || d.exec_base.as_deref() == Some(app_lower.as_str())
+
+    // The PID beats name-matching: the process's cgroup scope, flatpak id,
+    // or launch environment names its desktop entry exactly, and the real
+    // exe path sees through wrapper binaries.
+    let pid_desktop = pid.and_then(|p| {
+        let candidates = desktop_id_candidates(p);
+        resolver
+            .desktops
+            .iter()
+            .find(|d| !d.id.is_empty() && candidates.iter().any(|c| c == &d.id))
+            .or_else(|| {
+                let exe = exe_basename(p)?;
+                resolver
+                    .desktops
+                    .iter()
+                    .find(|d| d.exec_base.as_deref() == Some(exe.as_str()))
+            })
+    });
+
+    let desktop = pid_desktop.or_else(|| {
+        resolver.desktops.iter().find(|d| {
+            d.wm_class_lower.as_deref() == Some(app_lower.as_str())
+                || (binary_lower.is_some() && d.exec_base == binary_lower)
+                || d.name_lower == app_lower
+                || d.exec_base.as_deref() == Some(app_lower.as_str())
+        })
     });
 
     // Icon candidates in priority order: explicit stream hint, the desktop
@@ -234,6 +344,15 @@ pub fn resolve(app_name: &str, binary: Option<&str>, icon_hint: Option<&str>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn desktop_id_candidates_handles_real_processes() {
+        // Our own PID won't be in an app unit, but the call must not
+        // panic or error on a live /proc entry.
+        let _ = desktop_id_candidates(std::process::id());
+        // Nonexistent PID degrades to no candidates.
+        assert!(desktop_id_candidates(u32::MAX - 7).is_empty());
+    }
 
     #[test]
     fn parses_minimal_desktop_entry() {

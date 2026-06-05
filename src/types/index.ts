@@ -12,6 +12,8 @@ export interface AppStream {
   icon_name: string | null;
   /** Resolved absolute icon file path (desktop-entry based). */
   icon_path: string | null;
+  /** Producing process id (used backend-side for icon resolution). */
+  pid: number | null;
   /** Name of the virtual sink the stream is routed to, if any. */
   assigned_sink: string | null;
   volume_percent: number;

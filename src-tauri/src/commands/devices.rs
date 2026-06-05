@@ -26,8 +26,12 @@ pub fn get_app_streams(state: State<'_, AppState>) -> Result<Vec<AppStream>, Str
     for stream in &mut streams {
         let binary = (stream.match_prop == "application.process.binary")
             .then_some(stream.match_value.as_str());
-        let resolved =
-            crate::audio::icons::resolve(&stream.app_name, binary, stream.icon_name.as_deref());
+        let resolved = crate::audio::icons::resolve(
+            &stream.app_name,
+            binary,
+            stream.icon_name.as_deref(),
+            stream.pid,
+        );
         stream.icon_path = resolved.icon_path;
         if let Some(name) = resolved.display_name {
             stream.app_name = name;

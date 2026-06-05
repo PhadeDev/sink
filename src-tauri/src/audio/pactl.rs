@@ -238,6 +238,8 @@ impl AudioBackend for PactlBackend {
                     alias: None,
                     icon_name,
                     icon_path: None,
+                    pid: prop(&input.properties, "application.process.id")
+                        .and_then(|v| v.parse().ok()),
                     assigned_sink,
                     volume_percent: volume_percent(&input.volume),
                     muted: input.mute,
