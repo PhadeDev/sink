@@ -78,6 +78,7 @@ function DeviceRow({
 
 export function SettingsScreen() {
   const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [startMinimized, setStartMinimized] = useState(false);
   const [backendNative, setBackendNative] = useState<boolean | null>(null);
   const [version, setVersion] = useState("");
   const [defaults, setDefaults] = useState<DefaultDevices>({ output: null, input: null });
@@ -95,8 +96,11 @@ export function SettingsScreen() {
     void invoke<boolean>("get_autostart").then(setAutostart);
     void invoke<{ native: boolean }>("get_backend_info").then((i) => setBackendNative(i.native));
     void invoke<DefaultDevices>("get_default_devices").then(setDefaults).catch(() => {});
-    void invoke<{ device_label_style: LabelStyle }>("get_prefs")
-      .then((p) => setLabelStyle(p.device_label_style))
+    void invoke<{ device_label_style: LabelStyle; start_minimized: boolean }>("get_prefs")
+      .then((p) => {
+        setLabelStyle(p.device_label_style);
+        setStartMinimized(p.start_minimized);
+      })
       .catch(() => {});
     void getVersion().then(setVersion);
   }, []);
@@ -128,6 +132,18 @@ export function SettingsScreen() {
       setAutostart(actual);
       setError(null);
     } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const toggleStartMinimized = async () => {
+    const next = !startMinimized;
+    setStartMinimized(next);
+    try {
+      await invoke("set_start_minimized", { minimized: next });
+      setError(null);
+    } catch (e) {
+      setStartMinimized(!next);
       setError(String(e));
     }
   };
@@ -208,6 +224,21 @@ export function SettingsScreen() {
             </div>
             {autostart !== null && <Toggle on={autostart} onClick={() => void toggleAutostart()} />}
           </div>
+          {autostart && (
+            <div className="row row-sub">
+              <div className="ricon">
+                <Ms name="dock_to_bottom" />
+              </div>
+              <div className="rmain">
+                <div className="rtitle">Start minimized</div>
+                <div className="rsub">Boot to the tray instead of opening the window</div>
+              </div>
+              <Toggle
+                on={startMinimized}
+                onClick={() => void toggleStartMinimized()}
+              />
+            </div>
+          )}
         </div>
 
         <div className="section-label">About</div>

@@ -35,6 +35,10 @@ pub struct Prefs {
     /// Show the balance slider in the title bar.
     #[serde(default = "default_true")]
     pub show_balance: bool,
+    /// When autostarting on login, boot straight to the tray instead of
+    /// showing the window (only meaningful with autostart enabled).
+    #[serde(default)]
+    pub start_minimized: bool,
 }
 
 fn default_true() -> bool {
@@ -49,6 +53,7 @@ impl Default for Prefs {
             balance_a: None,
             balance_b: None,
             show_balance: true,
+            start_minimized: false,
         }
     }
 }

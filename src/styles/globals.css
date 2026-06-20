@@ -1763,3 +1763,11 @@ body,
   pointer-events: none;
   transition: left 0.06s linear;
 }
+
+/* settings sub-row: indented dependent option (e.g. start minimized) */
+.row.row-sub {
+  margin-left: var(--sp-6);
+}
+.row.row-sub .ricon {
+  opacity: 0.7;
+}

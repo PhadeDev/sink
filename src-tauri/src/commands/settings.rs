@@ -55,6 +55,23 @@ pub fn set_device_label_style(
     prefs.save().map_err(|e| e.to_string())
 }
 
+/// Toggle "start minimized" (boot to tray when autostarting). Rewrites
+/// the systemd unit when autostart is already enabled so the flag tracks
+/// the preference.
+#[tauri::command]
+pub fn set_start_minimized(state: State<'_, AppState>, minimized: bool) -> Result<(), String> {
+    let prefs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.prefs.start_minimized = minimized;
+        mixer.prefs.clone()
+    };
+    prefs.save().map_err(|e| e.to_string())?;
+    if autostart::is_enabled() {
+        autostart::enable().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Show or hide the title-bar balance slider.
 #[tauri::command]
 pub fn set_balance_visible(state: State<'_, AppState>, visible: bool) -> Result<(), String> {

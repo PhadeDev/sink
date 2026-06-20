@@ -88,10 +88,19 @@ pub fn run() {
             commands::settings::set_onboarded,
             commands::settings::set_balance_channels,
             commands::settings::set_balance_visible,
+            commands::settings::set_start_minimized,
             commands::settings::reset_app,
         ])
         .setup(move |app| {
             build_tray(app)?;
+            // The window starts hidden (config) to avoid a flash; show it
+            // now unless launched with --minimized (autostart-to-tray).
+            let minimized = std::env::args().any(|a| a == "--minimized");
+            if !minimized {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                }
+            }
             if let Some(levels) = levels {
                 spawn_level_emitter(app.handle().clone(), levels);
             }
