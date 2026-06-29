@@ -162,7 +162,9 @@ jobs:
           cp packaging/arch/PKGBUILD /build/PKGBUILD
           sed -i "s/^pkgver=.*/pkgver=${VER}/; s/^sha256sums=.*/sha256sums=('${sum}')/" /build/PKGBUILD
           chown -R builder:builder /build
-          sudo -u builder bash -lc 'cd /build && makepkg --noconfirm'
+          # --nodeps: this only repackages a prebuilt binary, so the runtime
+          # deps don't need to be installed in the build container.
+          sudo -u builder bash -lc 'cd /build && makepkg --noconfirm --nodeps'
           pkg=$(ls /build/sink-bin-*-x86_64.pkg.tar.zst)
           echo "Built: $pkg"
           gh release upload "v${VER}" --clobber "$pkg"
