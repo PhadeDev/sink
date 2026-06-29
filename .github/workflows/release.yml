@@ -21,6 +21,8 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -126,3 +128,41 @@ jobs:
             target/release/bundle/appimage/sink_*.AppImage \
             target/release/bundle/deb/*.deb \
             target/release/bundle/rpm/*.rpm
+
+  archpkg:
+    name: Arch package
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    # makepkg only runs on Arch, so build the pacman package in an Arch
+    # container and attach the .pkg.tar.zst to the release. Users install it
+    # with `sudo pacman -U`, the same way the .rpm/.deb are installed.
+    container: archlinux:latest
+    steps:
+      - name: Install build tooling
+        run: pacman -Syu --noconfirm --needed base-devel git github-cli
+
+      - uses: actions/checkout@v5
+
+      - name: Build and attach sink-bin
+        env:
+          VER: ${{ needs.build.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # makepkg refuses to run as root; build as an unprivileged user.
+          useradd -m builder
+          install -d -o builder /build
+          deb="sink_${VER}_amd64.deb"
+          # Fetch the exact .deb just attached to the release and pin its
+          # real checksum so makepkg validates the bytes users will get.
+          gh release download "v${VER}" --repo "$GITHUB_REPOSITORY" --pattern "$deb" --dir /build
+          sum=$(sha256sum "/build/$deb" | cut -d' ' -f1)
+          cp packaging/arch/PKGBUILD /build/PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=${VER}/; s/^sha256sums=.*/sha256sums=('${sum}')/" /build/PKGBUILD
+          chown -R builder:builder /build
+          sudo -u builder bash -lc 'cd /build && makepkg --noconfirm'
+          pkg=$(ls /build/sink-bin-*-x86_64.pkg.tar.zst)
+          echo "Built: $pkg"
+          gh release upload "v${VER}" --clobber "$pkg"

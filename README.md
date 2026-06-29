@@ -53,8 +53,14 @@ sudo dnf install ./sink-*.x86_64.rpm
 sudo apt install ./sink_*_amd64.deb
 ```
 
-Both install the app properly — launcher entry, icon, uninstall through
-your package manager.
+**Arch / Manjaro / EndeavourOS**
+
+```bash
+sudo pacman -U ./sink-bin-*-x86_64.pkg.tar.zst
+```
+
+All three install the app properly — launcher entry, icon, uninstall
+through your package manager.
 
 **Any other distro — AppImage (portable, no root)**
 
