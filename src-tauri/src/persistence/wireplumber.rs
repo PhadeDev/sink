@@ -5,8 +5,8 @@
 //! WirePlumber reads conf fragments at startup only, so this takes effect
 //! from the next login / WirePlumber restart. Live enforcement of
 //! assignments while Sink is running happens in `commands::devices` via the
-//! regular stream poll. (SPEC.md mentions Lua rules — that's WirePlumber
-//! 0.4 syntax; 0.5 replaced it with SPA-JSON conf fragments.)
+//! regular stream poll. (WirePlumber 0.4 used Lua rules; 0.5 replaced them
+//! with the SPA-JSON conf fragments rendered here.)
 
 use std::fs;
 use std::path::PathBuf;
