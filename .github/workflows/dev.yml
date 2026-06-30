@@ -1,4 +1,4 @@
-name: CI
+name: Dev
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: dev-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -106,7 +106,7 @@ jobs:
       - name: Build and smoke-test sink-bin
         run: |
           set -euo pipefail
-          deb=$(ls bundles/sink_*_amd64.deb)
+          deb=$(find bundles -name 'sink_*_amd64.deb' | head -1)
           ver=$(basename "$deb" | sed 's/^sink_//; s/_amd64\.deb$//')
           useradd -m builder
           install -d -o builder /build

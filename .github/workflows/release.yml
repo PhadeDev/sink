@@ -8,6 +8,11 @@ on:
       - "**.md"
       - ".gitignore"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Stable version to publish, e.g. 0.1.20. Leave blank to publish a dev prerelease."
+        required: false
+        default: ""
 
 concurrency:
   group: release
@@ -20,6 +25,8 @@ jobs:
       contents: write
     outputs:
       version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -55,23 +62,26 @@ jobs:
             zstd \
             jq
 
-      - name: Compute release version
+      - name: Determine release
+        # A version input (manual dispatch) cuts a stable vX.Y.Z; anything
+        # else (every push to main) refreshes the rolling `dev` prerelease,
+        # versioned as the next patch so it previews the upcoming release.
         id: ver
         run: |
           set -euo pipefail
-          conf=$(jq -r .version src-tauri/tauri.conf.json)
-          latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
-          latest=${latest#v}
-          latest=${latest:-0.0.0}
-          if [ "$conf" != "$latest" ] && \
-             [ "$(printf '%s\n' "$latest" "$conf" | sort -V | tail -1)" = "$conf" ]; then
-            ver="$conf"
+          input="${{ github.event.inputs.version }}"
+          if [ -n "$input" ]; then
+            ver="$input"; tag="v$ver"; pre=false
           else
-            IFS=. read -r major minor patch <<< "$latest"
-            ver="$major.$minor.$((patch + 1))"
+            latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
+            latest=${latest#v}; latest=${latest:-0.0.0}
+            IFS=. read -r ma mi pa <<< "$latest"
+            ver="$ma.$mi.$((pa + 1))"; tag="dev"; pre=true
           fi
           echo "version=$ver" >> "$GITHUB_OUTPUT"
-          echo "Releasing v$ver (conf=$conf, latest tag=v$latest)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          echo "Publishing $tag (version $ver, prerelease=$pre)"
 
       - name: Stamp version into the build
         run: |
@@ -100,20 +110,26 @@ jobs:
           cat runtime payload.squashfs > "$app"
           chmod +x "$app"
 
-      - name: Publish release
+      - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag="v${{ steps.ver.outputs.version }}"
-          gh release create "$tag" --target "$GITHUB_SHA" --title "Sink $tag" \
-            --generate-notes --notes "Linux builds:
+          tag="${{ steps.ver.outputs.tag }}"
+          if [ "${{ steps.ver.outputs.prerelease }}" = "true" ]; then
+            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+            gh release create "$tag" --target "$GITHUB_SHA" --title "Dev build" --prerelease \
+              --notes "Rolling development build from the latest commit on main. Not a stable release - expect rough edges."
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --title "Sink $tag" \
+              --generate-notes --notes "Linux builds:
           - **AppImage** - portable, run anywhere (\`chmod +x\` and go)
           - **.deb** - Debian / Ubuntu and derivatives
           - **.rpm** - Fedora / openSUSE and derivatives
           - **.pkg.tar.zst** - Arch (\`sudo pacman -U\`)
 
           Requires PipeWire with \`pipewire-pulse\` and WirePlumber 0.5+."
+          fi
           gh release upload "$tag" --clobber \
             target/release/bundle/appimage/sink_*.AppImage \
             target/release/bundle/deb/*.deb \
@@ -135,13 +151,14 @@ jobs:
       - name: Build and attach sink-bin
         env:
           VER: ${{ needs.build.outputs.version }}
+          TAG: ${{ needs.build.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           useradd -m builder
           install -d -o builder /build
           deb="sink_${VER}_amd64.deb"
-          gh release download "v${VER}" --repo "$GITHUB_REPOSITORY" --pattern "$deb" --dir /build
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$deb" --dir /build
           sum=$(sha256sum "/build/$deb" | cut -d' ' -f1)
           cp packaging/arch/PKGBUILD /build/PKGBUILD
           sed -i "s/^pkgver=.*/pkgver=${VER}/; s/^sha256sums=.*/sha256sums=('${sum}')/" /build/PKGBUILD
@@ -157,4 +174,4 @@ jobs:
             cat /tmp/launch.log
             exit 1
           fi
-          gh release upload "v${VER}" --repo "$GITHUB_REPOSITORY" --clobber "$pkg"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$pkg"
