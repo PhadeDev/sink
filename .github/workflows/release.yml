@@ -9,15 +9,12 @@ on:
       - ".gitignore"
   workflow_dispatch:
 
-# One release at a time so two pushes can't compute the same version.
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
   build:
-    # 24.04: PipeWire 1.x headers (the native backend needs >= 0.3.49)
-    # and webkit2gtk-4.1 for Tauri v2.
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -26,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0 # full history + tags for version computation
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
@@ -59,9 +56,6 @@ jobs:
             jq
 
       - name: Compute release version
-        # The version in tauri.conf.json wins when it's ahead of the latest
-        # tag (bump it for minor/major releases); otherwise the patch number
-        # auto-increments from the latest tag on every push.
         id: ver
         run: |
           set -euo pipefail
@@ -93,14 +87,9 @@ jobs:
         run: npm run tauri build
 
       - name: Repack AppImage against system PipeWire
-        # linuxdeploy bundles the build machine's libpipewire, which has
-        # its SPA plugin directory baked in at the distro's path — on any
-        # other distro it can't load support.system and the native backend
-        # dies. PipeWire is a hard runtime requirement anyway, so strip the
-        # bundled copy and let the loader use the system library.
+        # Strip the bundled libpipewire so the loader uses the system one.
         run: |
           set -euo pipefail
-          # The cargo target dir lives at the repo root in this workspace.
           cd "$(dirname "$(find target -path '*/release/bundle/appimage/sink_*.AppImage' | head -1)")"
           app=$(ls sink_*.AppImage)
           ./"$app" --appimage-extract > /dev/null
@@ -119,9 +108,10 @@ jobs:
           tag="v${{ steps.ver.outputs.version }}"
           gh release create "$tag" --target "$GITHUB_SHA" --title "Sink $tag" \
             --generate-notes --notes "Linux builds:
-          - **AppImage** — portable, run anywhere (\`chmod +x\` and go)
-          - **.deb** — Debian / Ubuntu and derivatives
-          - **.rpm** — Fedora / openSUSE and derivatives
+          - **AppImage** - portable, run anywhere (\`chmod +x\` and go)
+          - **.deb** - Debian / Ubuntu and derivatives
+          - **.rpm** - Fedora / openSUSE and derivatives
+          - **.pkg.tar.zst** - Arch (\`sudo pacman -U\`)
 
           Requires PipeWire with \`pipewire-pulse\` and WirePlumber 0.5+."
           gh release upload "$tag" --clobber \
@@ -135,9 +125,6 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-    # makepkg only runs on Arch, so build the pacman package in an Arch
-    # container and attach the .pkg.tar.zst to the release. Users install it
-    # with `sudo pacman -U`, the same way the .rpm/.deb are installed.
     container: archlinux:latest
     steps:
       - name: Install build tooling
@@ -151,27 +138,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # makepkg refuses to run as root; build as an unprivileged user.
           useradd -m builder
           install -d -o builder /build
           deb="sink_${VER}_amd64.deb"
-          # Fetch the exact .deb just attached to the release and pin its
-          # real checksum so makepkg validates the bytes users will get.
           gh release download "v${VER}" --repo "$GITHUB_REPOSITORY" --pattern "$deb" --dir /build
           sum=$(sha256sum "/build/$deb" | cut -d' ' -f1)
           cp packaging/arch/PKGBUILD /build/PKGBUILD
           sed -i "s/^pkgver=.*/pkgver=${VER}/; s/^sha256sums=.*/sha256sums=('${sum}')/" /build/PKGBUILD
           chown -R builder:builder /build
-          # --nodeps: this only repackages a prebuilt binary, so the runtime
-          # deps don't need to be installed in the build container.
           sudo -u builder bash -lc 'cd /build && makepkg --noconfirm --nodeps'
           pkg=$(ls /build/sink-bin-*-x86_64.pkg.tar.zst)
-          echo "Built: $pkg"
-          # Smoke test before publishing: install the package (which pulls the
-          # real runtime deps) and launch it headlessly. A missing runtime dep
-          # makes tray init panic on startup (exit 101) - something a "package
-          # is well-formed" check misses entirely - so assert the binary
-          # actually reaches its event loop before the artifact ships.
+          # Smoke test: install and launch headlessly; a missing runtime dep panics on start.
           pacman -U --noconfirm "$pkg" >/dev/null
           pacman -S --noconfirm --needed xorg-server-xvfb mesa >/dev/null
           timeout 25 xvfb-run -a /usr/bin/sink >/tmp/launch.log 2>&1 || true
@@ -180,8 +157,4 @@ jobs:
             cat /tmp/launch.log
             exit 1
           fi
-          echo "Launch smoke test passed (no startup panic)."
-          # --repo is required: without it gh inspects the local checkout to
-          # find the repo, which fails on git's "dubious ownership" guard in
-          # this container (workspace owned by a different uid than root).
           gh release upload "v${VER}" --repo "$GITHUB_REPOSITORY" --clobber "$pkg"
