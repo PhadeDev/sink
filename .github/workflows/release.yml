@@ -167,6 +167,20 @@ jobs:
           sudo -u builder bash -lc 'cd /build && makepkg --noconfirm --nodeps'
           pkg=$(ls /build/sink-bin-*-x86_64.pkg.tar.zst)
           echo "Built: $pkg"
+          # Smoke test before publishing: install the package (which pulls the
+          # real runtime deps) and launch it headlessly. A missing runtime dep
+          # makes tray init panic on startup (exit 101) - something a "package
+          # is well-formed" check misses entirely - so assert the binary
+          # actually reaches its event loop before the artifact ships.
+          pacman -U --noconfirm "$pkg" >/dev/null
+          pacman -S --noconfirm --needed xorg-server-xvfb mesa >/dev/null
+          timeout 25 xvfb-run -a /usr/bin/sink >/tmp/launch.log 2>&1 || true
+          if grep -q 'panicked at' /tmp/launch.log; then
+            echo "::error::sink panics on launch - not publishing"
+            cat /tmp/launch.log
+            exit 1
+          fi
+          echo "Launch smoke test passed (no startup panic)."
           # --repo is required: without it gh inspects the local checkout to
           # find the repo, which fails on git's "dubious ownership" guard in
           # this container (workspace owned by a different uid than root).

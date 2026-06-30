@@ -6,14 +6,13 @@ pkgdesc="SteelSeries Sonar for Linux - per-app audio routing, mixing, and a proc
 arch=('x86_64')
 url="https://github.com/NC1107/sink"
 license=('GPL-3.0-only')
-# Direct library deps (providers of the binary's NEEDED sonames) plus the
-# PipeWire session services the app needs to function.
+# Direct library deps (providers of the binary's NEEDED sonames), the
+# PipeWire session services, and the tray library. libayatana-appindicator
+# is dlopen'd, but the app aborts on startup when it is missing, so it is a
+# hard dep - it lives in extra, so `pacman -U` resolves it fine.
 depends=('glibc' 'libgcc' 'glib2' 'gtk3' 'gdk-pixbuf2' 'cairo' 'dbus'
          'webkit2gtk-4.1' 'libsoup3' 'libpipewire' 'pipewire-pulse'
-         'wireplumber' 'hicolor-icon-theme')
-# Tray support is dlopen'd at runtime, and the library lives in the AUR, so
-# keep it optional rather than blocking `pacman -U` on an unresolvable dep.
-optdepends=('libayatana-appindicator: system tray icon')
+         'wireplumber' 'hicolor-icon-theme' 'libayatana-appindicator')
 provides=('sink')
 conflicts=('sink')
 options=('!strip' '!debug')
