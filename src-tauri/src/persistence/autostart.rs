@@ -73,7 +73,7 @@ pub fn enable() -> Result<(), SinkError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&path, render_unit()?)?;
+    crate::persistence::write_atomic(&path, render_unit()?)?;
 
     for step in [&["daemon-reload"][..], &["enable", UNIT_NAME][..]] {
         let out = systemctl(step)?;

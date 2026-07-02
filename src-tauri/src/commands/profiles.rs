@@ -13,14 +13,13 @@ pub fn autosave_active(mixer: &crate::mixer::state::MixerState) {
     let Some(name) = &mixer.active_profile else {
         return;
     };
-    // Preserve the trigger binding across autosaves.
-    let trigger = profiles::load(name).ok().and_then(|p| p.trigger_device);
     let profile = Profile {
         name: name.clone(),
         channels: mixer.channels.clone(),
         assignments: mixer.assignments.clone(),
         outputs: mixer.outputs.clone(),
-        trigger_device: trigger,
+        // Preserved from the cache rather than re-read from disk each mutation.
+        trigger_device: mixer.active_trigger.clone(),
         buses: mixer.buses.clone(),
     };
     if let Err(e) = profiles::save(&profile) {
@@ -29,8 +28,15 @@ pub fn autosave_active(mixer: &crate::mixer::state::MixerState) {
 }
 
 fn set_active(state: &State<'_, AppState>, name: Option<String>) -> Result<(), String> {
+    // Refresh the cached trigger from the profile we're binding to (a rare
+    // profile switch, not the per-mutation autosave path).
+    let trigger = name
+        .as_deref()
+        .and_then(|n| profiles::load(n).ok())
+        .and_then(|p| p.trigger_device);
     let mut mixer = state.lock_mixer()?;
     mixer.active_profile = name.clone();
+    mixer.active_trigger = trigger;
     crate::persistence::active::save(name.as_deref()).map_err(|e| e.to_string())
 }
 
@@ -49,9 +55,20 @@ pub fn get_active_profile(state: State<'_, AppState>) -> Result<Option<String>, 
 /// Bind (or clear, with empty string) an output device that auto-loads
 /// this profile when it appears.
 #[tauri::command]
-pub fn set_profile_trigger(name: String, device: String) -> Result<(), String> {
+pub fn set_profile_trigger(
+    state: State<'_, AppState>,
+    name: String,
+    device: String,
+) -> Result<(), String> {
     let trigger = if device.is_empty() { None } else { Some(device) };
-    profiles::set_trigger(&name, trigger).map_err(|e| e.to_string())
+    profiles::set_trigger(&name, trigger.clone()).map_err(|e| e.to_string())?;
+    // Keep the cache in step so a later autosave doesn't overwrite the trigger
+    // we just set on the active profile with a stale value.
+    let mut mixer = state.lock_mixer()?;
+    if mixer.active_profile.as_deref() == Some(name.as_str()) {
+        mixer.active_trigger = trigger;
+    }
+    Ok(())
 }
 
 /// Apply a saved profile: reconcile the channel **layout** (create missing

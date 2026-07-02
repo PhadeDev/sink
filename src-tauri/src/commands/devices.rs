@@ -205,6 +205,7 @@ pub fn init_virtual_devices(
         match crate::persistence::profiles::save(&default) {
             Ok(()) => {
                 mixer.active_profile = Some(default.name.clone());
+                mixer.active_trigger = None; // the Default profile has no trigger
                 let _ = crate::persistence::active::save(Some(&default.name));
             }
             Err(e) => eprintln!("sink: creating Default profile failed: {e}"),

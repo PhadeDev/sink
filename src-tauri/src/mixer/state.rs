@@ -27,6 +27,10 @@ pub struct MixerState {
     /// Profile changes autosave into this profile (live-bound, not a
     /// snapshot). None = unmanaged state.
     pub active_profile: Option<String>,
+    /// Cached trigger device of `active_profile`, so autosave preserves it
+    /// without re-reading the profile file on every mutation. Kept in step
+    /// whenever the active profile or its trigger changes.
+    pub active_trigger: Option<String>,
     /// User-defined mixes (record buses), persisted to disk.
     pub buses: crate::persistence::buses::Buses,
     /// App preferences (device naming etc.), persisted to disk.

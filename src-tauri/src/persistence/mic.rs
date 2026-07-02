@@ -32,6 +32,6 @@ pub fn save(config: &MicConfig) -> Result<(), SinkError> {
     }
     let json = serde_json::to_string_pretty(config)
         .map_err(|e| SinkError::Config(format!("serialize mic config: {e}")))?;
-    fs::write(&path, json)?;
+    super::write_atomic(&path, &json)?;
     Ok(())
 }

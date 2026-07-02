@@ -105,7 +105,7 @@ pub fn save(profile: &Profile) -> Result<(), SinkError> {
     }
     let json = serde_json::to_string_pretty(profile)
         .map_err(|e| SinkError::Config(format!("serialize profile: {e}")))?;
-    fs::write(&path, json)?;
+    super::write_atomic(&path, &json)?;
     Ok(())
 }
 

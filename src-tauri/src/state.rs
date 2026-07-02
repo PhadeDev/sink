@@ -25,6 +25,13 @@ impl AppState {
         // them as soon as the sinks exist.
         let channel_defs = crate::persistence::channels::Channels::load();
         let buses = crate::persistence::buses::Buses::load(&channel_defs);
+        let active_profile = crate::persistence::active::load();
+        // Cache the active profile's trigger once so autosave never has to
+        // re-read the profile file to preserve it.
+        let active_trigger = active_profile
+            .as_deref()
+            .and_then(|name| crate::persistence::profiles::load(name).ok())
+            .and_then(|p| p.trigger_device);
         let mixer = MixerState {
             assignments: crate::persistence::assignments::Assignments::load(),
             aliases: crate::persistence::aliases::Aliases::load(),
@@ -33,7 +40,8 @@ impl AppState {
             channel_defs,
             buses,
             seen: crate::persistence::seen::SeenApps::load(),
-            active_profile: crate::persistence::active::load(),
+            active_profile,
+            active_trigger,
             prefs: crate::persistence::prefs::Prefs::load(),
             ..MixerState::default()
         };

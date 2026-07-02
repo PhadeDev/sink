@@ -71,7 +71,7 @@ pub fn write(assignments: &Assignments) -> Result<(), SinkError> {
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)?;
             }
-            fs::write(&path, content)?;
+            super::write_atomic(&path, &content)?;
         }
         None => {
             if path.exists() {
