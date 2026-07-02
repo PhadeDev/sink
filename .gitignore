@@ -3,3 +3,6 @@ dist/
 target/
 src-tauri/gen/schemas/
 *.log
+
+# Internal audit findings - local only, never committed
+technical_debt.md
