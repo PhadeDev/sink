@@ -240,6 +240,20 @@ pub fn get_channel_outputs(
         .collect())
 }
 
+/// Per-channel resolved output: the device node.name each channel is actually
+/// routed to right now (after explicit/default/fallback resolution). The UI
+/// shows this under "System default" so failover is visible. Empty on the
+/// pactl fallback, which can't report it.
+#[tauri::command]
+pub fn get_resolved_outputs(
+    state: State<'_, AppState>,
+) -> Result<std::collections::HashMap<String, Option<String>>, String> {
+    state
+        .backend
+        .resolved_channel_outputs()
+        .map_err(|e| e.to_string())
+}
+
 /// Route a channel to an output device; empty `output_name` = follow the
 /// system default. Persisted across restarts.
 #[tauri::command]

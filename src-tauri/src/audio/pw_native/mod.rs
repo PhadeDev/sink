@@ -96,6 +96,12 @@ impl AudioBackend for PipeWireBackend {
         self.request(|reply| Cmd::ListOutputs { reply })
     }
 
+    fn resolved_channel_outputs(
+        &self,
+    ) -> Result<std::collections::HashMap<String, Option<String>>, SinkError> {
+        self.request(|reply| Cmd::ResolvedOutputs { reply })
+    }
+
     fn set_sink_volume(&self, sink_name: &str, volume_percent: u8) -> Result<(), SinkError> {
         let name = sink_name.to_string();
         self.request(|reply| Cmd::SetNodeVolumeByName {

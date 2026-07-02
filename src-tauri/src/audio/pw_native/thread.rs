@@ -43,6 +43,7 @@ pub enum Cmd {
     DestroySink { name: String, reply: Reply<()> },
     ListStreams { reply: Reply<Vec<AppStream>> },
     ListOutputs { reply: Reply<Vec<OutputDevice>> },
+    ResolvedOutputs { reply: Reply<HashMap<String, Option<String>>> },
     SetNodeVolumeByName { name: String, percent: u8, reply: Reply<()> },
     SetNodeMuteByName { name: String, muted: bool, reply: Reply<()> },
     SetNodeVolumeById { id: u32, percent: u8, reply: Reply<()> },
@@ -119,6 +120,10 @@ struct State {
 
     /// Channel sink name -> live loopback links.
     channel_links: HashMap<String, LinkSet>,
+    /// Channel sink name -> the device node id it currently routes to (after
+    /// explicit/default/fallback resolution). Lets the UI show what "System
+    /// default" actually resolves to, and makes failover visible.
+    channel_targets: HashMap<String, u32>,
     /// Phase 3 mic chain.
     mic_config: MicConfig,
     /// Proxy for the sink_mic virtual source (kept alive while enabled).
@@ -788,6 +793,8 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
     // (unplugged, WirePlumber slow/unwilling to reassign): the best available
     // real sink, so audio fails over instead of dropping to silence.
     let fallback = fallback_sink(&s);
+    // Forget resolved targets for channels that no longer exist.
+    s.channel_targets.retain(|name, _| channel_names.contains(name));
 
     for sink_name in &channel_names {
         let sink_name = sink_name.as_str();
@@ -807,6 +814,16 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
                 .copied()
                 .or(fallback),
         };
+        // Record where this channel resolves to (even when the link set is
+        // unchanged) so the UI reflects the live target, including failover.
+        match target_id {
+            Some(t) => {
+                s.channel_targets.insert(sink_name.to_string(), t);
+            }
+            None => {
+                s.channel_targets.remove(sink_name);
+            }
+        }
         let pairs = target_id
             .map(|t| desired_pairs(&s, channel_id, t))
             .unwrap_or_default();
@@ -1051,6 +1068,23 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 })
                 .collect();
             let _ = reply.send(Ok(outputs));
+        }
+        Cmd::ResolvedOutputs { reply } => {
+            let s = state.borrow();
+            let resolved = s
+                .owned_sinks
+                .keys()
+                .chain(s.adopted_sinks.keys())
+                .map(|name| {
+                    let device = s
+                        .channel_targets
+                        .get(name)
+                        .and_then(|id| s.nodes.get(id))
+                        .and_then(|n| n.props.get("node.name").cloned());
+                    (name.clone(), device)
+                })
+                .collect();
+            let _ = reply.send(Ok(resolved));
         }
         Cmd::SetNodeVolumeByName { name, percent, reply } => {
             let s = state.borrow();

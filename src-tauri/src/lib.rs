@@ -46,6 +46,7 @@ pub fn run() {
             commands::devices::init_virtual_devices,
             commands::devices::teardown_virtual_devices,
             commands::devices::get_channel_outputs,
+            commands::devices::get_resolved_outputs,
             commands::devices::set_channel_output,
             commands::apps::get_seen_apps,
             commands::apps::set_app_ignored,

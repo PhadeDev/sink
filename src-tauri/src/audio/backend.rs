@@ -34,6 +34,17 @@ pub trait AudioBackend: Send + Sync {
         output_name: Option<&str>,
     ) -> Result<(), SinkError>;
 
+    /// Per-channel resolved output: the `node.name` of the device each channel
+    /// is actually routed to right now, after explicit/default/fallback
+    /// resolution (`None` = not currently routed anywhere). Lets the UI show
+    /// what "System default" resolves to and makes failover visible. Backends
+    /// that can't report this (pactl) return an empty map.
+    fn resolved_channel_outputs(
+        &self,
+    ) -> Result<std::collections::HashMap<String, Option<String>>, SinkError> {
+        Ok(std::collections::HashMap::new())
+    }
+
     /// Create a mix bus: a capturable virtual source whose label is the
     /// device name recorders (OBS) display. Native-only.
     fn create_bus(&self, name: &str, label: &str) -> Result<(), SinkError>;

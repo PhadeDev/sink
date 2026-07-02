@@ -39,6 +39,12 @@ interface MixerStore {
   outputDevices: OutputDevice[];
   /** Channel -> chosen output node name (null = follow system default). */
   channelOutputs: Record<string, string | null>;
+  /**
+   * Channel -> the device node name it is actually routed to right now (after
+   * default/fallback resolution). Lets a follow-default strip show where its
+   * audio really goes, and reflects failover. Empty on the pactl fallback.
+   */
+  resolvedOutputs: Record<string, string | null>;
   fetchOutputs: () => Promise<void>;
   setChannelOutput: (sinkName: string, outputName: string | null) => Promise<void>;
   /** Sonar-style "same device on all channels". */
@@ -144,6 +150,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   },
   outputDevices: [],
   channelOutputs: {},
+  resolvedOutputs: {},
   micConfig: null,
   inputDevices: [],
   seenApps: [],
@@ -328,11 +335,12 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
 
   fetchOutputs: async () => {
     try {
-      const [outputDevices, channelOutputs] = await Promise.all([
+      const [outputDevices, channelOutputs, resolvedOutputs] = await Promise.all([
         invoke<OutputDevice[]>("get_output_devices"),
         invoke<Record<string, string | null>>("get_channel_outputs"),
+        invoke<Record<string, string | null>>("get_resolved_outputs"),
       ]);
-      set({ outputDevices, channelOutputs });
+      set({ outputDevices, channelOutputs, resolvedOutputs });
     } catch (e) {
       set({ error: String(e) });
     }

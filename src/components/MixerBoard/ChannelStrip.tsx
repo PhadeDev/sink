@@ -33,6 +33,7 @@ export function ChannelStrip({
   const toggleMute = useMixerStore((s) => s.toggleMute);
   const level = useMixerStore((s) => s.levels[channel.name]);
   const output = useMixerStore((s) => s.channelOutputs[channel.name] ?? null);
+  const resolvedOutput = useMixerStore((s) => s.resolvedOutputs[channel.name] ?? null);
   const setChannelOutput = useMixerStore((s) => s.setChannelOutput);
   const renameChannel = useMixerStore((s) => s.renameChannel);
   const removeChannel = useMixerStore((s) => s.removeChannel);
@@ -198,6 +199,7 @@ export function ChannelStrip({
       <OutputSelect
         compact
         value={output}
+        resolved={resolvedOutput}
         onChange={(o) => void setChannelOutput(channel.name, o)}
       />
 

@@ -7,6 +7,12 @@ import { Popover } from "../Popover";
 interface OutputSelectProps {
   /** Selected output node name; null = follow system default. */
   value: string | null;
+  /**
+   * When following the system default, the device this channel actually
+   * resolves to right now (node name). Shown on the strip so the user sees
+   * where audio really goes, and so failover to another device is visible.
+   */
+  resolved?: string | null;
   /** "Mixed" display for the all-channels pill when selections differ. */
   mixed?: boolean;
   onChange: (outputName: string | null) => void;
@@ -23,18 +29,31 @@ function deviceIcon(description: string): string {
   return "speaker";
 }
 
-export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: OutputSelectProps) {
+export function OutputSelect({ value, resolved, mixed, onChange, compact, popoverStyle }: OutputSelectProps) {
   const [open, setOpen] = useState(false);
   const outputDevices = useMixerStore((s) => s.outputDevices);
 
   const current = value === null ? null : outputDevices.find((d) => d.name === value);
+  // While following the default, the device it currently resolves to (so the
+  // strip shows where audio actually goes, and reflects failover).
+  const resolvedDevice =
+    value === null && resolved ? outputDevices.find((d) => d.name === resolved) : undefined;
+  const shown = current ?? resolvedDevice;
+
   const label = mixed
     ? "Per-channel"
     : value === null
-      ? "System default"
+      ? resolvedDevice
+        ? `System default (${resolvedDevice.description})`
+        : "System default"
       : (current?.description ?? value);
   // Compact footer label: a single meaningful word that fits a 122px strip.
-  const shortLabel = mixed ? "Mixed" : value === null ? "Default" : label.split(" ")[0];
+  // Following default shows the live device so the user sees where it lands.
+  const shortLabel = mixed
+    ? "Mixed"
+    : value === null
+      ? (resolvedDevice ? resolvedDevice.description.split(" ")[0] : "Default")
+      : label.split(" ")[0];
 
   const items = (
     <>
@@ -74,7 +93,7 @@ export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: 
           onClick={() => setOpen((o) => !o)}
           title={`Output: ${label}`}
         >
-          <Ms name={current ? deviceIcon(current.description) : "arrow_forward"} />
+          <Ms name={shown ? deviceIcon(shown.description) : "arrow_forward"} />
           <span className="strip-route-name">{shortLabel}</span>
           <Ms name="expand_more" />
         </button>
@@ -94,7 +113,7 @@ export function OutputSelect({ value, mixed, onChange, compact, popoverStyle }: 
   return (
     <div style={{ position: "relative" }}>
       <button className="out-pill" onClick={() => setOpen((o) => !o)}>
-        <Ms name={current ? deviceIcon(current.description) : "speaker_group"} />
+        <Ms name={shown ? deviceIcon(shown.description) : "speaker_group"} />
         <span>{label}</span>
         <Ms name="expand_more" className="chev" />
       </button>
