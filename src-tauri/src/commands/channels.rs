@@ -31,7 +31,9 @@ pub fn add_channel(
         state.backend.set_sink_mute(&def.name, false)?;
         state.backend.set_channel_output(&def.name, None)
     })() {
-        // Roll the definition back so config matches reality.
+        // Roll back so config matches reality: destroy the sink if it got
+        // created (idempotent if it didn't), then drop the definition.
+        let _ = state.backend.destroy_virtual_sink(&def.name);
         let mut mixer = state.lock_mixer()?;
         let _ = mixer.channel_defs.remove(&def.name);
         return Err(e.to_string());
@@ -169,7 +171,7 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
             .assignments
             .assignments
             .retain(|a| a.sink_name != sink_name);
-        mixer.outputs.outputs.remove(&sink_name);
+        mixer.outputs.remove(&sink_name);
         // Drop the channel from every mix's membership too.
         mixer.buses.remove_channel(&sink_name);
         // Re-evaluate auto-routing with the channel gone.

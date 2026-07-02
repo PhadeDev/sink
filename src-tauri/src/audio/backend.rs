@@ -34,6 +34,25 @@ pub trait AudioBackend: Send + Sync {
         output_name: Option<&str>,
     ) -> Result<(), SinkError>;
 
+    /// Turn a channel's auto-failover on or off. When off, the channel routes
+    /// only to its chosen device (or the exact system default) and stays
+    /// silent when that's gone, instead of falling back to another sink.
+    /// Backends without in-graph link control (pactl) ignore this.
+    fn set_channel_failover(&self, _sink_name: &str, _enabled: bool) -> Result<(), SinkError> {
+        Ok(())
+    }
+
+    /// Per-channel resolved output: the `node.name` of the device each channel
+    /// is actually routed to right now, after explicit/default/fallback
+    /// resolution (`None` = not currently routed anywhere). Lets the UI show
+    /// what "System default" resolves to and makes failover visible. Backends
+    /// that can't report this (pactl) return an empty map.
+    fn resolved_channel_outputs(
+        &self,
+    ) -> Result<std::collections::HashMap<String, Option<String>>, SinkError> {
+        Ok(std::collections::HashMap::new())
+    }
+
     /// Create a mix bus: a capturable virtual source whose label is the
     /// device name recorders (OBS) display. Native-only.
     fn create_bus(&self, name: &str, label: &str) -> Result<(), SinkError>;

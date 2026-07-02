@@ -90,7 +90,7 @@ impl Prefs {
         }
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| SinkError::Config(format!("serialize prefs: {e}")))?;
-        fs::write(&path, json)?;
+        super::write_atomic(&path, &json)?;
         Ok(())
     }
 

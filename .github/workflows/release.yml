@@ -8,36 +8,43 @@ on:
       - "**.md"
       - ".gitignore"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Stable version to publish, e.g. 0.1.20. Leave blank to publish a dev prerelease."
+        required: false
+        default: ""
 
-# One release at a time so two pushes can't compute the same version.
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
   build:
-    # 24.04: PipeWire 1.x headers (the native backend needs >= 0.3.49)
-    # and webkit2gtk-4.1 for Tauri v2.
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     outputs:
       version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0 # full history + tags for version computation
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
-          workspaces: src-tauri
+          toolchain: stable
+          components: clippy
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2.9.1
+        with:
+          workspaces: .
 
       - name: Install system dependencies
         run: |
@@ -58,26 +65,44 @@ jobs:
             zstd \
             jq
 
-      - name: Compute release version
-        # The version in tauri.conf.json wins when it's ahead of the latest
-        # tag (bump it for minor/major releases); otherwise the patch number
-        # auto-increments from the latest tag on every push.
+      - name: Determine release
+        # A version input (manual dispatch) cuts a stable vX.Y.Z; anything
+        # else (every push to main) refreshes the rolling `dev` prerelease,
+        # versioned as the next patch so it previews the upcoming release.
         id: ver
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
-          conf=$(jq -r .version src-tauri/tauri.conf.json)
-          latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
-          latest=${latest#v}
-          latest=${latest:-0.0.0}
-          if [ "$conf" != "$latest" ] && \
-             [ "$(printf '%s\n' "$latest" "$conf" | sort -V | tail -1)" = "$conf" ]; then
-            ver="$conf"
+          input="$INPUT_VERSION"
+          if [ -n "$input" ]; then
+            # Stable release: validate the input rather than trusting it. An
+            # unchecked value yields tags like `vv0.1.20` and unfindable
+            # artifacts, and a dispatch from a feature branch would tag
+            # unreviewed code.
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::stable releases must be dispatched from main (got $GITHUB_REF)"
+              exit 1
+            fi
+            if [[ ! "$input" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::version must be X.Y.Z (got '$input')"
+              exit 1
+            fi
+            if git rev-parse "v$input" >/dev/null 2>&1; then
+              echo "::error::tag v$input already exists"
+              exit 1
+            fi
+            ver="$input"; tag="v$ver"; pre=false
           else
-            IFS=. read -r major minor patch <<< "$latest"
-            ver="$major.$minor.$((patch + 1))"
+            latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
+            latest=${latest#v}; latest=${latest:-0.0.0}
+            IFS=. read -r ma mi pa <<< "$latest"
+            ver="$ma.$mi.$((pa + 1))"; tag="dev"; pre=true
           fi
           echo "version=$ver" >> "$GITHUB_OUTPUT"
-          echo "Releasing v$ver (conf=$conf, latest tag=v$latest)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          echo "Publishing $tag (version $ver, prerelease=$pre)"
 
       - name: Stamp version into the build
         run: |
@@ -86,21 +111,26 @@ jobs:
           jq --arg v "$ver" '.version = $v' src-tauri/tauri.conf.json > /tmp/tauri.conf.json
           mv /tmp/tauri.conf.json src-tauri/tauri.conf.json
           npm pkg set version="$ver"
+          # Keep the crate version in step so CARGO_PKG_VERSION (crash reports,
+          # --version, package metadata) matches the release instead of 0.1.0.
+          sed -i '0,/^version = /{s/^version = .*/version = "'"$ver"'"/}' src-tauri/Cargo.toml
 
       - run: npm ci
+
+      - name: Verify (never publish untested code)
+        run: |
+          npx tsc --noEmit
+          npm test
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Build bundles
         run: npm run tauri build
 
       - name: Repack AppImage against system PipeWire
-        # linuxdeploy bundles the build machine's libpipewire, which has
-        # its SPA plugin directory baked in at the distro's path — on any
-        # other distro it can't load support.system and the native backend
-        # dies. PipeWire is a hard runtime requirement anyway, so strip the
-        # bundled copy and let the loader use the system library.
+        # Strip the bundled libpipewire so the loader uses the system one.
         run: |
           set -euo pipefail
-          # The cargo target dir lives at the repo root in this workspace.
           cd "$(dirname "$(find target -path '*/release/bundle/appimage/sink_*.AppImage' | head -1)")"
           app=$(ls sink_*.AppImage)
           ./"$app" --appimage-extract > /dev/null
@@ -111,20 +141,35 @@ jobs:
           cat runtime payload.squashfs > "$app"
           chmod +x "$app"
 
-      - name: Publish release
+      - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag="v${{ steps.ver.outputs.version }}"
-          gh release create "$tag" --target "$GITHUB_SHA" --title "Sink $tag" \
-            --generate-notes --notes "Linux builds:
-          - **AppImage** — portable, run anywhere (\`chmod +x\` and go)
-          - **.deb** — Debian / Ubuntu and derivatives
-          - **.rpm** — Fedora / openSUSE and derivatives
+          tag="${{ steps.ver.outputs.tag }}"
+          if [ "${{ steps.ver.outputs.prerelease }}" = "true" ]; then
+            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+            gh release create "$tag" --target "$GITHUB_SHA" --title "Dev build" --prerelease \
+              --notes "Rolling development build from the latest commit on main. Not a stable release - expect rough edges."
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --title "Sink $tag" \
+              --generate-notes --notes "Linux builds:
+          - **AppImage** - portable, run anywhere (\`chmod +x\` and go)
+          - **.deb** - Debian / Ubuntu and derivatives
+          - **.rpm** - Fedora / openSUSE and derivatives
+          - **.pkg.tar.zst** - Arch (\`sudo pacman -U\`)
 
           Requires PipeWire with \`pipewire-pulse\` and WirePlumber 0.5+."
+          fi
+          # Checksums over what this job builds, by basename, so users can
+          # verify downloads. The Arch package is built later and appends its
+          # own line (see the archpkg job).
+          ( cd target/release/bundle
+            sha256sum appimage/sink_*.AppImage deb/*.deb rpm/*.rpm \
+              | awk '{ n=$2; sub(/.*\//, "", n); print $1"  "n }' \
+              > "$GITHUB_WORKSPACE/SHA256SUMS" )
           gh release upload "$tag" --clobber \
+            "$GITHUB_WORKSPACE/SHA256SUMS" \
             target/release/bundle/appimage/sink_*.AppImage \
             target/release/bundle/deb/*.deb \
             target/release/bundle/rpm/*.rpm
@@ -135,9 +180,6 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-    # makepkg only runs on Arch, so build the pacman package in an Arch
-    # container and attach the .pkg.tar.zst to the release. Users install it
-    # with `sudo pacman -U`, the same way the .rpm/.deb are installed.
     container: archlinux:latest
     steps:
       - name: Install build tooling
@@ -148,40 +190,40 @@ jobs:
       - name: Build and attach sink-bin
         env:
           VER: ${{ needs.build.outputs.version }}
+          TAG: ${{ needs.build.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # makepkg refuses to run as root; build as an unprivileged user.
           useradd -m builder
           install -d -o builder /build
           deb="sink_${VER}_amd64.deb"
-          # Fetch the exact .deb just attached to the release and pin its
-          # real checksum so makepkg validates the bytes users will get.
-          gh release download "v${VER}" --repo "$GITHUB_REPOSITORY" --pattern "$deb" --dir /build
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$deb" --dir /build
           sum=$(sha256sum "/build/$deb" | cut -d' ' -f1)
           cp packaging/arch/PKGBUILD /build/PKGBUILD
           sed -i "s/^pkgver=.*/pkgver=${VER}/; s/^sha256sums=.*/sha256sums=('${sum}')/" /build/PKGBUILD
           chown -R builder:builder /build
-          # --nodeps: this only repackages a prebuilt binary, so the runtime
-          # deps don't need to be installed in the build container.
           sudo -u builder bash -lc 'cd /build && makepkg --noconfirm --nodeps'
           pkg=$(ls /build/sink-bin-*-x86_64.pkg.tar.zst)
-          echo "Built: $pkg"
-          # Smoke test before publishing: install the package (which pulls the
-          # real runtime deps) and launch it headlessly. A missing runtime dep
-          # makes tray init panic on startup (exit 101) - something a "package
-          # is well-formed" check misses entirely - so assert the binary
-          # actually reaches its event loop before the artifact ships.
+          # Smoke test: install and launch headlessly. A healthy tray app runs
+          # until timeout kills it (exit 124); an earlier exit means a missing
+          # runtime dep (loader abort), a tray/webkit init failure, or a panic.
           pacman -U --noconfirm "$pkg" >/dev/null
           pacman -S --noconfirm --needed xorg-server-xvfb mesa >/dev/null
-          timeout 25 xvfb-run -a /usr/bin/sink >/tmp/launch.log 2>&1 || true
-          if grep -q 'panicked at' /tmp/launch.log; then
-            echo "::error::sink panics on launch - not publishing"
-            cat /tmp/launch.log
+          set +e
+          timeout 25 xvfb-run -a /usr/bin/sink >/tmp/launch.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/launch.log || true
+          if grep -qiE 'panicked at|error while loading shared libraries|cannot open shared object|symbol lookup error' /tmp/launch.log; then
+            echo "::error::sink failed to start cleanly - not publishing"
             exit 1
           fi
-          echo "Launch smoke test passed (no startup panic)."
-          # --repo is required: without it gh inspects the local checkout to
-          # find the repo, which fails on git's "dubious ownership" guard in
-          # this container (workspace owned by a different uid than root).
-          gh release upload "v${VER}" --repo "$GITHUB_REPOSITORY" --clobber "$pkg"
+          if [ "$code" -ne 124 ]; then
+            echo "::error::sink exited early (code $code) instead of staying alive - not publishing"
+            exit 1
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$pkg"
+          # Append the Arch package checksum to the release SHA256SUMS.
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir /tmp 2>/dev/null || true
+          echo "$(sha256sum "$pkg" | cut -d' ' -f1)  $(basename "$pkg")" >> /tmp/SHA256SUMS
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber /tmp/SHA256SUMS

@@ -15,7 +15,8 @@ pub fn get_mic_config(state: State<'_, AppState>) -> Result<MicConfig, String> {
 /// decorated per the device-naming preference at the backend boundary;
 /// the stored config stays raw.
 #[tauri::command]
-pub fn set_mic_config(state: State<'_, AppState>, config: MicConfig) -> Result<(), String> {
+pub fn set_mic_config(state: State<'_, AppState>, mut config: MicConfig) -> Result<(), String> {
+    config.clamp_ranges();
     let mut applied = config.clone();
     applied.output_label = state.lock_mixer()?.prefs.decorate(&config.output_label);
     state

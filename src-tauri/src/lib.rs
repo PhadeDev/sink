@@ -46,6 +46,9 @@ pub fn run() {
             commands::devices::init_virtual_devices,
             commands::devices::teardown_virtual_devices,
             commands::devices::get_channel_outputs,
+            commands::devices::get_resolved_outputs,
+            commands::devices::get_channel_failover,
+            commands::devices::set_channel_failover,
             commands::devices::set_channel_output,
             commands::apps::get_seen_apps,
             commands::apps::set_app_ignored,
@@ -126,18 +129,40 @@ pub fn run() {
 /// Streams per-channel peak levels to the UI at 10 Hz as `levels` events.
 /// Peaks are drained (read-and-reset), so silence decays to zero.
 fn spawn_level_emitter(handle: tauri::AppHandle, levels: Arc<LevelStore>) {
-    std::thread::spawn(move || loop {
-        // The meter registry is dynamic (user-defined channels + mic).
-        let payload: HashMap<String, [f32; 2]> = levels
-            .names()
-            .into_iter()
-            .map(|(name, slot)| (name, [levels.drain(slot, 0), levels.drain(slot, 1)]))
-            .collect();
-        if handle.emit("levels", &payload).is_err() {
-            // App is shutting down.
-            break;
+    std::thread::spawn(move || {
+        let mut prev_all_zero = false;
+        loop {
+            std::thread::sleep(Duration::from_millis(100));
+            // The app's dominant state is sitting in the tray during a game.
+            // Don't lock the registry, serialize a map and wake the webview
+            // for a window nobody can see (TD-008).
+            let onscreen = handle
+                .get_webview_window("main")
+                .map(|w| w.is_visible().unwrap_or(true) && !w.is_minimized().unwrap_or(false))
+                .unwrap_or(true);
+            if !onscreen {
+                // Force a fresh frame when the window returns.
+                prev_all_zero = false;
+                continue;
+            }
+            // The meter registry is dynamic (user-defined channels + mic).
+            let payload: HashMap<String, [f32; 2]> = levels
+                .names()
+                .into_iter()
+                .map(|(name, slot)| (name, [levels.drain(slot, 0), levels.drain(slot, 1)]))
+                .collect();
+            // Emit the first all-zero frame so the meters settle to zero, then
+            // go quiet until sound returns instead of pushing silence at 10 Hz.
+            let all_zero = payload.values().all(|[l, r]| *l < 1e-4 && *r < 1e-4);
+            if all_zero && prev_all_zero {
+                continue;
+            }
+            prev_all_zero = all_zero;
+            if handle.emit("levels", &payload).is_err() {
+                // App is shutting down.
+                break;
+            }
         }
-        std::thread::sleep(Duration::from_millis(100));
     });
 }
 

@@ -38,61 +38,87 @@ pub fn get_app_streams(state: State<'_, AppState>) -> Result<Vec<AppStream>, Str
         }
     }
 
-    let mut mixer = state.lock_mixer()?;
-
-    // Record sightings in the app history, then hide ignored identities
-    // (they are also exempt from auto-routing below by virtue of removal).
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let mut structural_change = false;
-    for stream in &streams {
-        structural_change |= mixer.seen.upsert(
-            &stream.match_prop,
-            &stream.match_value,
-            &stream.app_name,
-            stream.icon_name.as_deref(),
-            now,
-        );
-    }
-    if structural_change {
-        if let Err(e) = mixer.seen.save() {
+
+    // Phase 1: under the lock, update history and *plan* auto-routing - but do
+    // no blocking work. Holding the mixer mutex across the disk save or the
+    // backend move calls (each up to the native backend's 3s request timeout)
+    // would stall every other command - including tray-menu building - behind
+    // this 2s poll, and slow-loop polls would stack up (TD-004). So we snapshot
+    // the decisions here and release the guard before touching disk or PipeWire.
+    let (seen_to_save, planned) = {
+        let mut mixer = state.lock_mixer()?;
+        let mut structural_change = false;
+        for stream in &streams {
+            structural_change |= mixer.seen.upsert(
+                &stream.match_prop,
+                &stream.match_value,
+                &stream.app_name,
+                stream.icon_name.as_deref(),
+                now,
+            );
+        }
+        // Hide ignored identities (also exempts them from auto-routing).
+        streams.retain(|s| !mixer.seen.is_ignored(&s.match_prop, &s.match_value));
+
+        // Only enforce once the virtual sinks exist; otherwise streams would be
+        // marked handled while their target sink can't be moved to yet.
+        let mut planned: Vec<(u32, String, String)> = Vec::new();
+        if mixer.initialized {
+            for stream in &streams {
+                if mixer.auto_routed.contains(&stream.index) {
+                    continue;
+                }
+                if let Some(target) = mixer
+                    .assignments
+                    .sink_for(&stream.match_prop, &stream.match_value)
+                {
+                    if stream.assigned_sink.as_deref() != Some(target) {
+                        planned.push((stream.index, target.to_string(), stream.app_name.clone()));
+                    }
+                }
+                // Marked handled once (before the move, so a concurrent poll
+                // can't re-plan it); manual re-routing then isn't fought.
+                mixer.auto_routed.insert(stream.index);
+            }
+            // Forget streams that have gone away, so the ledger can't grow
+            // without bound and a recycled PipeWire index isn't mistaken for one
+            // we already handled (which would skip auto-routing a new stream).
+            let live: std::collections::HashSet<u32> = streams.iter().map(|s| s.index).collect();
+            mixer.auto_routed.retain(|i| live.contains(i));
+        }
+
+        // User-chosen display names (in-memory read, cheap enough to keep here).
+        for stream in &mut streams {
+            stream.alias = mixer
+                .aliases
+                .get(&stream.match_prop, &stream.match_value)
+                .map(str::to_string);
+        }
+
+        // Snapshot the history for an out-of-lock save, only when it changed.
+        (structural_change.then(|| mixer.seen.clone()), planned)
+    };
+
+    // Phase 2: the blocking work, with the lock released.
+    if let Some(seen) = seen_to_save {
+        if let Err(e) = seen.save() {
             eprintln!("sink: saving app history failed: {e}");
         }
     }
-    streams.retain(|s| !mixer.seen.is_ignored(&s.match_prop, &s.match_value));
-    // Only enforce once the virtual sinks exist; otherwise streams would be
-    // marked as handled while their target sink can't be moved to yet.
-    if mixer.initialized {
-        for stream in &mut streams {
-            if mixer.auto_routed.contains(&stream.index) {
-                continue;
-            }
-            if let Some(target) = mixer
-                .assignments
-                .sink_for(&stream.match_prop, &stream.match_value)
-            {
-                if stream.assigned_sink.as_deref() != Some(target) {
-                    match state.backend.move_stream_to_sink(stream.index, target) {
-                        Ok(()) => stream.assigned_sink = Some(target.to_string()),
-                        Err(e) => eprintln!(
-                            "sink: auto-route of {} (#{}) failed: {e}",
-                            stream.app_name, stream.index
-                        ),
-                    }
+    for (index, target, app_name) in planned {
+        match state.backend.move_stream_to_sink(index, &target) {
+            // Reflect the successful move in the snapshot returned to the UI.
+            Ok(()) => {
+                if let Some(s) = streams.iter_mut().find(|s| s.index == index) {
+                    s.assigned_sink = Some(target);
                 }
             }
-            mixer.auto_routed.insert(stream.index);
+            Err(e) => eprintln!("sink: auto-route of {app_name} (#{index}) failed: {e}"),
         }
-    }
-
-    // Apply user-chosen display names.
-    for stream in &mut streams {
-        stream.alias = mixer
-            .aliases
-            .get(&stream.match_prop, &stream.match_value)
-            .map(str::to_string);
     }
 
     Ok(streams)
@@ -157,6 +183,12 @@ pub fn init_virtual_devices(
         {
             eprintln!("sink: output routing for {} failed: {e}", def.name);
         }
+        // Restore per-channel failover (default on, so only push the ones off).
+        if !outputs.failover(&def.name) {
+            if let Err(e) = state.backend.set_channel_failover(&def.name, false) {
+                eprintln!("sink: failover setting for {} failed: {e}", def.name);
+            }
+        }
     }
 
     // Bring up the user's mixes and their memberships.
@@ -205,6 +237,7 @@ pub fn init_virtual_devices(
         match crate::persistence::profiles::save(&default) {
             Ok(()) => {
                 mixer.active_profile = Some(default.name.clone());
+                mixer.active_trigger = None; // the Default profile has no trigger
                 let _ = crate::persistence::active::save(Some(&default.name));
             }
             Err(e) => eprintln!("sink: creating Default profile failed: {e}"),
@@ -234,6 +267,35 @@ pub fn get_channel_outputs(
         .collect())
 }
 
+/// Per-channel resolved output: the device node.name each channel is actually
+/// routed to right now (after explicit/default/fallback resolution). The UI
+/// shows this under "System default" so failover is visible. Empty on the
+/// pactl fallback, which can't report it.
+#[tauri::command]
+pub fn get_resolved_outputs(
+    state: State<'_, AppState>,
+) -> Result<std::collections::HashMap<String, Option<String>>, String> {
+    state
+        .backend
+        .resolved_channel_outputs()
+        .map_err(|e| e.to_string())
+}
+
+/// Whether each channel fails over to another device when its chosen device
+/// (or the default) is gone. On unless explicitly turned off.
+#[tauri::command]
+pub fn get_channel_failover(
+    state: State<'_, AppState>,
+) -> Result<std::collections::HashMap<String, bool>, String> {
+    let mixer = state.lock_mixer()?;
+    Ok(mixer
+        .channel_defs
+        .channels
+        .iter()
+        .map(|def| (def.name.clone(), mixer.outputs.failover(&def.name)))
+        .collect())
+}
+
 /// Route a channel to an output device; empty `output_name` = follow the
 /// system default. Persisted across restarts.
 #[tauri::command]
@@ -255,6 +317,29 @@ pub fn set_channel_output(
     let outputs = {
         let mut mixer = state.lock_mixer()?;
         mixer.outputs.set(&sink_name, output);
+        crate::commands::profiles::autosave_active(&mixer);
+        mixer.outputs.clone()
+    };
+    outputs.save().map_err(|e| e.to_string())
+}
+
+/// Turn a channel's auto-failover on or off. Off = the channel plays only on
+/// its chosen device (or exact default) and stays silent when that's gone.
+/// Persisted across restarts.
+#[tauri::command]
+pub fn set_channel_failover(
+    state: State<'_, AppState>,
+    sink_name: String,
+    enabled: bool,
+) -> Result<(), String> {
+    state
+        .backend
+        .set_channel_failover(&sink_name, enabled)
+        .map_err(|e| e.to_string())?;
+
+    let outputs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.outputs.set_failover(&sink_name, enabled);
         crate::commands::profiles::autosave_active(&mixer);
         mixer.outputs.clone()
     };

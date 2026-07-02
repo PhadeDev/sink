@@ -302,6 +302,26 @@ pub struct MicConfig {
     pub limiter_ceiling_db: f32,
 }
 
+impl MicConfig {
+    /// Clamp numeric fields to their documented, DSP-safe ranges and replace
+    /// non-finite values, so a malformed or hostile IPC payload can't push
+    /// the mic chain out of range (TD-050).
+    pub fn clamp_ranges(&mut self) {
+        fn finite(v: f32, fallback: f32, lo: f32, hi: f32) -> f32 {
+            if v.is_finite() {
+                v.clamp(lo, hi)
+            } else {
+                fallback
+            }
+        }
+        self.gain_percent = self.gain_percent.min(200);
+        self.gate_threshold_db = finite(self.gate_threshold_db, default_gate_threshold(), -100.0, 0.0);
+        self.comp_threshold_db = finite(self.comp_threshold_db, default_comp_threshold(), -100.0, 0.0);
+        self.comp_ratio = finite(self.comp_ratio, default_comp_ratio(), 1.0, 20.0);
+        self.limiter_ceiling_db = finite(self.limiter_ceiling_db, default_limiter_ceiling(), -60.0, 0.0);
+    }
+}
+
 impl Default for MicConfig {
     fn default() -> Self {
         Self {
@@ -318,5 +338,57 @@ impl Default for MicConfig {
             comp_ratio: default_comp_ratio(),
             limiter_ceiling_db: default_limiter_ceiling(),
         }
+    }
+}
+
+#[cfg(test)]
+mod mic_clamp_tests {
+    use super::*;
+
+    #[test]
+    fn clamp_ranges_bounds_out_of_range_values() {
+        let mut c = MicConfig {
+            gain_percent: 255,
+            gate_threshold_db: 40.0,
+            comp_threshold_db: -400.0,
+            comp_ratio: 1000.0,
+            limiter_ceiling_db: 12.0,
+            ..MicConfig::default()
+        };
+        c.clamp_ranges();
+        assert_eq!(c.gain_percent, 200);
+        assert_eq!(c.gate_threshold_db, 0.0);
+        assert_eq!(c.comp_threshold_db, -100.0);
+        assert_eq!(c.comp_ratio, 20.0);
+        assert_eq!(c.limiter_ceiling_db, 0.0);
+    }
+
+    #[test]
+    fn clamp_ranges_replaces_non_finite_with_defaults() {
+        let mut c = MicConfig {
+            gate_threshold_db: f32::NAN,
+            comp_threshold_db: f32::INFINITY,
+            comp_ratio: f32::NEG_INFINITY,
+            ..MicConfig::default()
+        };
+        c.clamp_ranges();
+        assert_eq!(c.gate_threshold_db, default_gate_threshold());
+        assert_eq!(c.comp_threshold_db, default_comp_threshold());
+        assert_eq!(c.comp_ratio, default_comp_ratio());
+    }
+
+    #[test]
+    fn clamp_ranges_leaves_valid_values_untouched() {
+        let mut c = MicConfig {
+            gain_percent: 120,
+            gate_threshold_db: -45.0,
+            comp_threshold_db: -18.0,
+            comp_ratio: 4.0,
+            limiter_ceiling_db: -1.0,
+            ..MicConfig::default()
+        };
+        let before = c.clone();
+        c.clamp_ranges();
+        assert_eq!(c, before);
     }
 }

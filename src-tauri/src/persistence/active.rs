@@ -30,7 +30,7 @@ pub fn save(name: Option<&str>) -> Result<(), SinkError> {
             if let Some(parent) = path.parent() {
                 crate::persistence::ensure_private_dir(parent)?;
             }
-            fs::write(&path, name)?;
+            super::write_atomic(&path, name)?;
         }
         None => {
             if path.exists() {

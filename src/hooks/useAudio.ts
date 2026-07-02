@@ -22,12 +22,33 @@ export function useAudio() {
 
   useEffect(() => {
     void initialize();
-    const id = setInterval(() => {
+    let id: ReturnType<typeof setInterval> | undefined;
+    const poll = () => {
       void fetchAppStreams();
       void fetchOutputs();
       void fetchSeenApps();
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    };
+    const start = () => {
+      if (id === undefined) {
+        poll(); // refresh immediately so a returning window isn't stale
+        id = setInterval(poll, POLL_INTERVAL_MS);
+      }
+    };
+    const stop = () => {
+      if (id !== undefined) {
+        clearInterval(id);
+        id = undefined;
+      }
+    };
+    // Pause the 4-IPC poll while hidden in the tray - the product's dominant
+    // idle state - instead of round-tripping every 2s forever (TD-009).
+    const onVisibility = () => (document.hidden ? stop() : start());
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [initialize, fetchAppStreams, fetchOutputs, fetchSeenApps]);
 
   useEffect(() => {
