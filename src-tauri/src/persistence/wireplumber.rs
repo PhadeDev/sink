@@ -69,7 +69,8 @@ pub fn write(assignments: &Assignments) -> Result<(), SinkError> {
     match render(assignments) {
         Some(content) => {
             if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
+                // Owner-only, matching Sink's own config dir (TD-052).
+                super::ensure_private_dir(parent)?;
             }
             super::write_atomic(&path, &content)?;
         }

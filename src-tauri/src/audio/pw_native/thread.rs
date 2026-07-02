@@ -1366,7 +1366,11 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             } else {
                 "default.configured.audio.sink"
             };
-            let value = format!("{{\"name\":\"{}\"}}", name.replace('"', "\\\""));
+            // Build the Spa:String:JSON value with serde so backslashes,
+            // quotes and control chars are all escaped - a hand-rolled
+            // format! that only escaped `"` let a name ending in `\` break
+            // out of the quoted string and inject metadata keys (TD-018).
+            let value = serde_json::json!({ "name": name }).to_string();
             metadata.set_property(0, key, Some("Spa:String:JSON"), Some(&value));
             let _ = reply.send(Ok(()));
         }

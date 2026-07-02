@@ -170,11 +170,22 @@ impl AudioBackend for PactlBackend {
             }
         }
 
+        // Quote the description and escape it so a label with whitespace
+        // (or quotes/backslashes) can't split into extra module properties -
+        // pactl parses `sink_properties` as a space-delimited proplist, and
+        // the value is otherwise attacker-influenced (TD-048). Control chars
+        // are dropped so a newline can't start a new property line.
+        let desc: String = label
+            .chars()
+            .map(|c| if c.is_control() { ' ' } else { c })
+            .collect::<String>()
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"");
         let stdout = Self::run(&[
             "load-module",
             "module-null-sink",
             &format!("sink_name={name}"),
-            &format!("sink_properties=device.description={label}"),
+            &format!("sink_properties=device.description=\"{desc}\""),
         ])?;
         let module_index: u32 = stdout
             .trim()

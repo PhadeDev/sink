@@ -63,6 +63,11 @@ pub fn set_channel_volume(
     sink_name: String,
     volume: u8,
 ) -> Result<(), String> {
+    // Only our own channels, so a compromised webview can't touch arbitrary
+    // session sinks (TD-050).
+    if !is_virtual_sink(&sink_name) {
+        return Err(format!("unknown channel: {sink_name}"));
+    }
     let volume = volume.min(MAX_VOLUME);
     state
         .backend
@@ -84,6 +89,9 @@ pub fn toggle_channel_mute(
     sink_name: String,
     muted: bool,
 ) -> Result<(), String> {
+    if !is_virtual_sink(&sink_name) {
+        return Err(format!("unknown channel: {sink_name}"));
+    }
     state
         .backend
         .set_sink_mute(&sink_name, muted)
@@ -105,6 +113,17 @@ pub fn set_monitor(
     sink_name: String,
     enabled: bool,
 ) -> Result<(), String> {
+    // Monitoring is scoped to our own nodes: a channel, a mix bus, or the mic
+    // (TD-050) - not any arbitrary session sink.
+    {
+        let mixer = state.lock_mixer()?;
+        let known = sink_name == "sink_mic"
+            || mixer.channel_defs.channels.iter().any(|c| c.name == sink_name)
+            || mixer.buses.buses.iter().any(|b| b.name == sink_name);
+        if !known {
+            return Err(format!("unknown monitor target: {sink_name}"));
+        }
+    }
     state
         .backend
         .set_monitor(&sink_name, enabled)
