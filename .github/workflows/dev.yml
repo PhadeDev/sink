@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: dev-${{ github.ref }}
   cancel-in-progress: true
@@ -20,13 +23,14 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
+          toolchain: stable
           components: clippy
 
-      - uses: swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2.9.1
         with:
-          workspaces: src-tauri
+          workspaces: .
 
       - name: Install system dependencies
         run: |
@@ -56,11 +60,13 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
-          workspaces: src-tauri
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2.9.1
+        with:
+          workspaces: .
 
       - name: Install system dependencies
         run: |
@@ -119,12 +125,24 @@ jobs:
           pkg=$(ls /build/sink-bin-*-x86_64.pkg.tar.zst)
           pacman -U --noconfirm "$pkg" >/dev/null
           pacman -S --noconfirm --needed xorg-server-xvfb mesa >/dev/null
-          timeout 25 xvfb-run -a /usr/bin/sink >/tmp/launch.log 2>&1 || true
-          if grep -q 'panicked at' /tmp/launch.log; then
-            echo "::error::sink panics on launch"
-            cat /tmp/launch.log
+          # A healthy tray app runs its event loop until timeout kills it (exit
+          # 124). Any earlier exit is a real failure: a missing shared library
+          # (the loader aborts before main), a tray/webkit init failure, or a
+          # panic. `|| true` + a panic-only grep would let all of those pass.
+          set +e
+          timeout 25 xvfb-run -a /usr/bin/sink >/tmp/launch.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/launch.log || true
+          if grep -qiE 'panicked at|error while loading shared libraries|cannot open shared object|symbol lookup error' /tmp/launch.log; then
+            echo "::error::sink failed to start cleanly - see log above"
             exit 1
           fi
+          if [ "$code" -ne 124 ]; then
+            echo "::error::sink exited early (code $code) instead of staying alive for 25s"
+            exit 1
+          fi
+          echo "sink launched and stayed alive under xvfb"
           cp "$pkg" "$GITHUB_WORKSPACE/"
 
       - uses: actions/upload-artifact@v4
