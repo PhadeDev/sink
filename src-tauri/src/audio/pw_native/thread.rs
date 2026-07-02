@@ -692,6 +692,39 @@ fn desired_pairs(s: &State, channel_id: u32, target_id: u32) -> Vec<(u32, u32)> 
         .collect()
 }
 
+/// Highest-`priority.session` non-virtual sink from `(id, node.name, priority)`
+/// candidates. Pure (plain tuples) so the failover choice is unit-testable,
+/// and it reuses WirePlumber's own scoring so Sink's fallback matches the
+/// device the OS would pick, consistently across distros.
+fn pick_fallback_sink<'a>(candidates: impl Iterator<Item = (u32, &'a str, i64)>) -> Option<u32> {
+    candidates
+        .filter(|(_, name, _)| !is_virtual_sink(name))
+        .max_by_key(|&(_, _, priority)| priority)
+        .map(|(id, _, _)| id)
+}
+
+/// The real output sink to fall back to when a follow-default channel's
+/// default has no live node — e.g. the device was unplugged and WirePlumber
+/// hasn't reassigned the default. Without it such a channel gets no links and
+/// goes silent (the field-reported "no audio on speakers when headset off").
+fn fallback_sink(s: &State) -> Option<u32> {
+    pick_fallback_sink(
+        s.nodes
+            .values()
+            .filter(|n| n.media_class == SINK_CLASS)
+            .map(|n| {
+                (
+                    n.id,
+                    n.props.get("node.name").map(String::as_str).unwrap_or(""),
+                    n.props
+                        .get("priority.session")
+                        .and_then(|p| p.parse::<i64>().ok())
+                        .unwrap_or(0),
+                )
+            }),
+    )
+}
+
 /// Create link objects for `pairs` between two nodes; returns the proxies.
 fn create_links(
     core: &CoreRc,
@@ -751,6 +784,11 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
         .cloned()
         .collect();
 
+    // Where follow-default channels go when their default has no live node
+    // (unplugged, WirePlumber slow/unwilling to reassign): the best available
+    // real sink, so audio fails over instead of dropping to silence.
+    let fallback = fallback_sink(&s);
+
     for sink_name in &channel_names {
         let sink_name = sink_name.as_str();
         let channel_id = match node_ids.get(sink_name) {
@@ -766,7 +804,8 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
                 .default_sink_name
                 .as_ref()
                 .and_then(|name| node_ids.get(name))
-                .copied(),
+                .copied()
+                .or(fallback),
         };
         let pairs = target_id
             .map(|t| desired_pairs(&s, channel_id, t))
@@ -1339,4 +1378,71 @@ fn set_props(
         .proxy
         .set_param(pw::spa::param::ParamType::Props, 0, pod);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn port(id: u32, node_id: u32, dir: &str, channel: Option<&str>) -> PortEntry {
+        PortEntry {
+            id,
+            node_id,
+            direction: dir.to_string(),
+            channel: channel.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn desired_pairs_matches_stereo_by_channel_not_index() {
+        let mut s = State::default();
+        // Monitor FL/FR on node 10, inputs FL/FR on node 20 with ids ordered
+        // so a naive index pairing would cross the channels.
+        s.ports.insert(1, port(1, 10, "out", Some("FL")));
+        s.ports.insert(2, port(2, 10, "out", Some("FR")));
+        s.ports.insert(3, port(3, 20, "in", Some("FR")));
+        s.ports.insert(4, port(4, 20, "in", Some("FL")));
+        let mut pairs = desired_pairs(&s, 10, 20);
+        pairs.sort_unstable();
+        assert_eq!(pairs, vec![(1, 4), (2, 3)]);
+    }
+
+    #[test]
+    fn desired_pairs_fans_mono_source_to_every_input() {
+        let mut s = State::default();
+        s.ports.insert(1, port(1, 10, "out", Some("MONO")));
+        s.ports.insert(2, port(2, 20, "in", Some("FL")));
+        s.ports.insert(3, port(3, 20, "in", Some("FR")));
+        let mut pairs = desired_pairs(&s, 10, 20);
+        pairs.sort_unstable();
+        assert_eq!(pairs, vec![(1, 2), (1, 3)]);
+    }
+
+    #[test]
+    fn desired_pairs_empty_for_self_or_missing_ports() {
+        let mut s = State::default();
+        s.ports.insert(1, port(1, 10, "out", Some("FL")));
+        assert!(desired_pairs(&s, 10, 10).is_empty(), "same node");
+        assert!(desired_pairs(&s, 10, 20).is_empty(), "target has no inputs");
+    }
+
+    #[test]
+    fn fallback_picks_highest_priority_real_sink() {
+        let candidates = [
+            (1u32, "sink_game", 10_000i64), // virtual — never a fallback
+            (2, "alsa_output.hdmi", 500),
+            (3, "alsa_output.analog", 900),
+            (4, "alsa_output.usb", 700),
+        ];
+        assert_eq!(pick_fallback_sink(candidates.into_iter()), Some(3));
+    }
+
+    #[test]
+    fn fallback_is_none_when_only_virtual_channel_sinks_exist() {
+        // Channel sinks are virtual and must never be a fallback target.
+        // (sink_mic/sink_stream are sources, excluded by media_class before
+        // reaching here — so they're not exercised at this layer.)
+        let candidates = [(1u32, "sink_game", 0i64), (2, "sink_chat", 0)];
+        assert_eq!(pick_fallback_sink(candidates.into_iter()), None);
+    }
 }
