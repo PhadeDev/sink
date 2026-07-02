@@ -85,6 +85,11 @@ pub fn get_app_streams(state: State<'_, AppState>) -> Result<Vec<AppStream>, Str
             }
             mixer.auto_routed.insert(stream.index);
         }
+        // Forget streams that have gone away, so the ledger can't grow without
+        // bound and a recycled PipeWire index isn't mistaken for one we
+        // already handled (which would skip auto-routing a brand-new stream).
+        let live: std::collections::HashSet<u32> = streams.iter().map(|s| s.index).collect();
+        mixer.auto_routed.retain(|i| live.contains(i));
     }
 
     // Apply user-chosen display names.

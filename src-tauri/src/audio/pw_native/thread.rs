@@ -123,6 +123,10 @@ struct State {
     mic_config: MicConfig,
     /// Proxy for the sink_mic virtual source (kept alive while enabled).
     mic_source: Option<Node>,
+    /// Mic-node removals we caused ourselves (a rename recreates the node), so
+    /// the heal path can tell them from an external destroy and only recreate
+    /// for the latter.
+    mic_expected_removals: u32,
     mic_streams: Option<MicStreams>,
     levels: Option<Arc<LevelStore>>,
     /// Mix buses we own: node name -> proxy.
@@ -248,9 +252,24 @@ fn setup_and_run(
                                 _ => {}
                             }
                             // A deliberate recreate (mic rename) already has
-                            // a fresh proxy/node — don't double up.
+                            // a fresh proxy/node — don't double up. For the
+                            // mic the new proxy is set synchronously before
+                            // this removal event, so `mic_source.is_some()`
+                            // can't tell our own destroy from an external one;
+                            // the expected-removals counter can.
                             let already_back = match kind {
-                                2 => s.mic_source.is_some(),
+                                2 => {
+                                    if s.mic_expected_removals > 0 {
+                                        s.mic_expected_removals -= 1;
+                                        true
+                                    } else {
+                                        // External destroy (wpctl, a session
+                                        // hiccup): drop the dead proxy so the
+                                        // recreate below isn't blocked by it.
+                                        s.mic_source = None;
+                                        false
+                                    }
+                                }
                                 _ => s.node_by_name(&name).is_some(),
                             };
                             if already_back {
@@ -1111,6 +1130,10 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     s.mic_streams = None;
                     s.mic_links.clear();
                     if let Some(proxy) = s.mic_source.take() {
+                        // Our own destroy — the heal path should expect this
+                        // removal rather than treat it as external and race a
+                        // second recreate.
+                        s.mic_expected_removals += 1;
                         if let Some(core) = CORE.with(|c| c.borrow().clone()) {
                             let _ = core.destroy_object(proxy);
                         }

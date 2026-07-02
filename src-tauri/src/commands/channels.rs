@@ -31,7 +31,9 @@ pub fn add_channel(
         state.backend.set_sink_mute(&def.name, false)?;
         state.backend.set_channel_output(&def.name, None)
     })() {
-        // Roll the definition back so config matches reality.
+        // Roll back so config matches reality: destroy the sink if it got
+        // created (idempotent if it didn't), then drop the definition.
+        let _ = state.backend.destroy_virtual_sink(&def.name);
         let mut mixer = state.lock_mixer()?;
         let _ = mixer.channel_defs.remove(&def.name);
         return Err(e.to_string());
