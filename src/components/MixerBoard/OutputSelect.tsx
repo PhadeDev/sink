@@ -101,17 +101,12 @@ export function OutputSelect({
           <div className="menu-sep" />
           <div
             className="menu-item"
-            onClick={() => onFailoverChange(!(failover ?? true))}
+            style={{ cursor: "default" }}
             title="Off: this channel plays only on the device above (or the exact system default) and stays silent if it's gone, instead of failing over to another output."
           >
             <Ms name="sync_alt" />
-            <span>Fail over to another device</span>
-            <span
-              style={{ marginLeft: "auto", display: "flex" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Toggle on={failover ?? true} onClick={() => onFailoverChange(!(failover ?? true))} />
-            </span>
+            <span style={{ marginRight: "auto" }}>Fail over to another device</span>
+            <Toggle on={failover ?? true} onClick={() => onFailoverChange(!(failover ?? true))} />
           </div>
         </>
       )}
