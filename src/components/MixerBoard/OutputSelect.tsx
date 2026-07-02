@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { useMixerStore } from "../../store/mixer";
 import { Ms } from "../Icons";
 import { Popover } from "../Popover";
+import { Toggle } from "../Toggle";
 
 interface OutputSelectProps {
   /** Selected output node name; null = follow system default. */
@@ -13,6 +14,10 @@ interface OutputSelectProps {
    * where audio really goes, and so failover to another device is visible.
    */
   resolved?: string | null;
+  /** Whether this channel fails over to another device (default true). */
+  failover?: boolean;
+  /** Toggle auto-failover for this channel. Omit to hide the toggle. */
+  onFailoverChange?: (enabled: boolean) => void;
   /** "Mixed" display for the all-channels pill when selections differ. */
   mixed?: boolean;
   onChange: (outputName: string | null) => void;
@@ -29,7 +34,16 @@ function deviceIcon(description: string): string {
   return "speaker";
 }
 
-export function OutputSelect({ value, resolved, mixed, onChange, compact, popoverStyle }: OutputSelectProps) {
+export function OutputSelect({
+  value,
+  resolved,
+  failover,
+  onFailoverChange,
+  mixed,
+  onChange,
+  compact,
+  popoverStyle,
+}: OutputSelectProps) {
   const [open, setOpen] = useState(false);
   const outputDevices = useMixerStore((s) => s.outputDevices);
 
@@ -82,6 +96,25 @@ export function OutputSelect({ value, resolved, mixed, onChange, compact, popove
           {!mixed && d.name === value && <Ms name="check" style={{ marginLeft: "auto" }} />}
         </div>
       ))}
+      {onFailoverChange && !mixed && (
+        <>
+          <div className="menu-sep" />
+          <div
+            className="menu-item"
+            onClick={() => onFailoverChange(!(failover ?? true))}
+            title="Off: this channel plays only on the device above (or the exact system default) and stays silent if it's gone, instead of failing over to another output."
+          >
+            <Ms name="sync_alt" />
+            <span>Fail over to another device</span>
+            <span
+              style={{ marginLeft: "auto", display: "flex" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Toggle on={failover ?? true} onClick={() => onFailoverChange(!(failover ?? true))} />
+            </span>
+          </div>
+        </>
+      )}
     </>
   );
 

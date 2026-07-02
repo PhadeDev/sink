@@ -34,6 +34,14 @@ pub trait AudioBackend: Send + Sync {
         output_name: Option<&str>,
     ) -> Result<(), SinkError>;
 
+    /// Turn a channel's auto-failover on or off. When off, the channel routes
+    /// only to its chosen device (or the exact system default) and stays
+    /// silent when that's gone, instead of falling back to another sink.
+    /// Backends without in-graph link control (pactl) ignore this.
+    fn set_channel_failover(&self, _sink_name: &str, _enabled: bool) -> Result<(), SinkError> {
+        Ok(())
+    }
+
     /// Per-channel resolved output: the `node.name` of the device each channel
     /// is actually routed to right now, after explicit/default/fallback
     /// resolution (`None` = not currently routed anywhere). Lets the UI show

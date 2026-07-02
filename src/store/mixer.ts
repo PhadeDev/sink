@@ -45,8 +45,15 @@ interface MixerStore {
    * audio really goes, and reflects failover. Empty on the pactl fallback.
    */
   resolvedOutputs: Record<string, string | null>;
+  /**
+   * Channel -> whether it fails over to another device when its chosen device
+   * (or the default) is gone. Off = play only on the chosen device / exact
+   * default, silence otherwise. Defaults to on (absent treated as true).
+   */
+  channelFailover: Record<string, boolean>;
   fetchOutputs: () => Promise<void>;
   setChannelOutput: (sinkName: string, outputName: string | null) => Promise<void>;
+  setChannelFailover: (sinkName: string, enabled: boolean) => Promise<void>;
   /** Sonar-style "same device on all channels". */
   setAllOutputs: (outputName: string | null) => Promise<void>;
   /** Mic chain (Phase 3). Null until loaded. */
@@ -151,6 +158,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   outputDevices: [],
   channelOutputs: {},
   resolvedOutputs: {},
+  channelFailover: {},
   micConfig: null,
   inputDevices: [],
   seenApps: [],
@@ -335,12 +343,13 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
 
   fetchOutputs: async () => {
     try {
-      const [outputDevices, channelOutputs, resolvedOutputs] = await Promise.all([
+      const [outputDevices, channelOutputs, resolvedOutputs, channelFailover] = await Promise.all([
         invoke<OutputDevice[]>("get_output_devices"),
         invoke<Record<string, string | null>>("get_channel_outputs"),
         invoke<Record<string, string | null>>("get_resolved_outputs"),
+        invoke<Record<string, boolean>>("get_channel_failover"),
       ]);
-      set({ outputDevices, channelOutputs, resolvedOutputs });
+      set({ outputDevices, channelOutputs, resolvedOutputs, channelFailover });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -352,6 +361,18 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     }));
     try {
       await invoke("set_channel_output", { sinkName, outputName: outputName ?? "" });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchOutputs();
+    }
+  },
+
+  setChannelFailover: async (sinkName, enabled) => {
+    set((s) => ({
+      channelFailover: { ...s.channelFailover, [sinkName]: enabled },
+    }));
+    try {
+      await invoke("set_channel_failover", { sinkName, enabled });
     } catch (e) {
       set({ error: String(e) });
       await get().fetchOutputs();

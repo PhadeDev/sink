@@ -133,6 +133,12 @@ pub fn load_profile(
         {
             eprintln!("sink: profile output for {} failed: {e}", channel.name);
         }
+        if let Err(e) = state
+            .backend
+            .set_channel_failover(&channel.name, profile.outputs.failover(&channel.name))
+        {
+            eprintln!("sink: profile failover for {} failed: {e}", channel.name);
+        }
     }
 
     // ---- mix bus reconciliation ----

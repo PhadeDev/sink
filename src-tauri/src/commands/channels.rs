@@ -171,7 +171,7 @@ pub fn remove_channel(state: State<'_, AppState>, sink_name: String) -> Result<(
             .assignments
             .assignments
             .retain(|a| a.sink_name != sink_name);
-        mixer.outputs.outputs.remove(&sink_name);
+        mixer.outputs.remove(&sink_name);
         // Drop the channel from every mix's membership too.
         mixer.buses.remove_channel(&sink_name);
         // Re-evaluate auto-routing with the channel gone.

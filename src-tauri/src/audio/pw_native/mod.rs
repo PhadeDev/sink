@@ -147,6 +147,15 @@ impl AudioBackend for PipeWireBackend {
         })
     }
 
+    fn set_channel_failover(&self, sink_name: &str, enabled: bool) -> Result<(), SinkError> {
+        let sink_name = sink_name.to_string();
+        self.request(|reply| Cmd::SetChannelFailover {
+            sink_name,
+            enabled,
+            reply,
+        })
+    }
+
     fn create_bus(&self, name: &str, label: &str) -> Result<(), SinkError> {
         let name = name.to_string();
         let label = label.to_string();

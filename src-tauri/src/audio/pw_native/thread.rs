@@ -50,6 +50,7 @@ pub enum Cmd {
     MoveStream { id: u32, sink_name: String, reply: Reply<()> },
     /// Route a channel's monitor to an output device (None = follow default).
     SetChannelOutput { sink_name: String, output_name: Option<String>, reply: Reply<()> },
+    SetChannelFailover { sink_name: String, enabled: bool, reply: Reply<()> },
     /// Create a mix bus (capturable virtual source).
     CreateBus { name: String, label: String, reply: Reply<()> },
     /// Destroy a mix bus and its links.
@@ -124,6 +125,10 @@ struct State {
     /// explicit/default/fallback resolution). Lets the UI show what "System
     /// default" actually resolves to, and makes failover visible.
     channel_targets: HashMap<String, u32>,
+    /// Channels with auto-failover turned off: they route only to their chosen
+    /// device (or the exact default) and stay silent when it's gone. Absence
+    /// (the default) means failover is on.
+    channel_strict: std::collections::HashSet<String>,
     /// Phase 3 mic chain.
     mic_config: MicConfig,
     /// Proxy for the sink_mic virtual source (kept alive while enabled).
@@ -730,6 +735,27 @@ fn fallback_sink(s: &State) -> Option<u32> {
     )
 }
 
+/// Which device a channel routes to. `explicit_id` is the pinned device's node
+/// id when it's set *and* present; `pinned` is whether a device is pinned at
+/// all; `strict` is failover-off. Follow-default and pinned-but-gone channels
+/// take the default, then - only when failover is on - the best available
+/// sink; in strict mode a gone device resolves to nothing (silence) rather than
+/// jumping elsewhere. Pure, so the whole matrix is unit-testable.
+fn resolve_target(
+    explicit_id: Option<u32>,
+    pinned: bool,
+    strict: bool,
+    default_id: Option<u32>,
+    fallback: Option<u32>,
+) -> Option<u32> {
+    match explicit_id {
+        Some(id) => Some(id),
+        None if pinned && strict => None,
+        None if strict => default_id,
+        None => default_id.or(fallback),
+    }
+}
+
 /// Create link objects for `pairs` between two nodes; returns the proxies.
 fn create_links(
     core: &CoreRc,
@@ -805,15 +831,15 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
 
         // ---- output device links ----
         let explicit = s.channel_outputs.get(sink_name).cloned().flatten();
-        let target_id = match explicit {
-            Some(name) if node_ids.contains_key(&name) => node_ids.get(&name).copied(),
-            _ => s
-                .default_sink_name
-                .as_ref()
-                .and_then(|name| node_ids.get(name))
-                .copied()
-                .or(fallback),
-        };
+        let pinned = explicit.is_some();
+        let explicit_id = explicit.as_deref().and_then(|name| node_ids.get(name).copied());
+        let strict = s.channel_strict.contains(sink_name);
+        let default_id = s
+            .default_sink_name
+            .as_ref()
+            .and_then(|name| node_ids.get(name))
+            .copied();
+        let target_id = resolve_target(explicit_id, pinned, strict, default_id, fallback);
         // Record where this channel resolves to (even when the link set is
         // unchanged) so the UI reflects the live target, including failover.
         match target_id {
@@ -1356,6 +1382,22 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
             ensure_all_links(state);
             let _ = reply.send(Ok(()));
         }
+        Cmd::SetChannelFailover { sink_name, enabled, reply } => {
+            if !is_virtual_sink(&sink_name) {
+                let _ = reply.send(Err(SinkError::UnknownSink(sink_name)));
+                return;
+            }
+            {
+                let mut s = state.borrow_mut();
+                if enabled {
+                    s.channel_strict.remove(&sink_name);
+                } else {
+                    s.channel_strict.insert(sink_name);
+                }
+            }
+            ensure_all_links(state);
+            let _ = reply.send(Ok(()));
+        }
         Cmd::MoveStream { id, sink_name, reply } => {
             let s = state.borrow();
             let Some(metadata) = s.metadata.as_ref() else {
@@ -1469,6 +1511,24 @@ mod tests {
             (4, "alsa_output.usb", 700),
         ];
         assert_eq!(pick_fallback_sink(candidates.into_iter()), Some(3));
+    }
+
+    #[test]
+    fn resolve_target_covers_the_failover_matrix() {
+        // Pinned and present -> that device, failover on or off.
+        assert_eq!(resolve_target(Some(7), true, false, Some(1), Some(2)), Some(7));
+        assert_eq!(resolve_target(Some(7), true, true, Some(1), Some(2)), Some(7));
+        // Follow-default, failover on -> default, else the fallback sink.
+        assert_eq!(resolve_target(None, false, false, Some(1), Some(2)), Some(1));
+        assert_eq!(resolve_target(None, false, false, None, Some(2)), Some(2));
+        // Follow-default, failover off -> default only; silent when it's gone.
+        assert_eq!(resolve_target(None, false, true, Some(1), Some(2)), Some(1));
+        assert_eq!(resolve_target(None, false, true, None, Some(2)), None);
+        // Pinned but gone, failover on -> default then fallback.
+        assert_eq!(resolve_target(None, true, false, Some(1), Some(2)), Some(1));
+        assert_eq!(resolve_target(None, true, false, None, Some(2)), Some(2));
+        // Pinned but gone, failover off -> silence, never another device.
+        assert_eq!(resolve_target(None, true, true, Some(1), Some(2)), None);
     }
 
     #[test]

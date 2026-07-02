@@ -183,6 +183,12 @@ pub fn init_virtual_devices(
         {
             eprintln!("sink: output routing for {} failed: {e}", def.name);
         }
+        // Restore per-channel failover (default on, so only push the ones off).
+        if !outputs.failover(&def.name) {
+            if let Err(e) = state.backend.set_channel_failover(&def.name, false) {
+                eprintln!("sink: failover setting for {} failed: {e}", def.name);
+            }
+        }
     }
 
     // Bring up the user's mixes and their memberships.
@@ -275,6 +281,21 @@ pub fn get_resolved_outputs(
         .map_err(|e| e.to_string())
 }
 
+/// Whether each channel fails over to another device when its chosen device
+/// (or the default) is gone. On unless explicitly turned off.
+#[tauri::command]
+pub fn get_channel_failover(
+    state: State<'_, AppState>,
+) -> Result<std::collections::HashMap<String, bool>, String> {
+    let mixer = state.lock_mixer()?;
+    Ok(mixer
+        .channel_defs
+        .channels
+        .iter()
+        .map(|def| (def.name.clone(), mixer.outputs.failover(&def.name)))
+        .collect())
+}
+
 /// Route a channel to an output device; empty `output_name` = follow the
 /// system default. Persisted across restarts.
 #[tauri::command]
@@ -296,6 +317,29 @@ pub fn set_channel_output(
     let outputs = {
         let mut mixer = state.lock_mixer()?;
         mixer.outputs.set(&sink_name, output);
+        crate::commands::profiles::autosave_active(&mixer);
+        mixer.outputs.clone()
+    };
+    outputs.save().map_err(|e| e.to_string())
+}
+
+/// Turn a channel's auto-failover on or off. Off = the channel plays only on
+/// its chosen device (or exact default) and stays silent when that's gone.
+/// Persisted across restarts.
+#[tauri::command]
+pub fn set_channel_failover(
+    state: State<'_, AppState>,
+    sink_name: String,
+    enabled: bool,
+) -> Result<(), String> {
+    state
+        .backend
+        .set_channel_failover(&sink_name, enabled)
+        .map_err(|e| e.to_string())?;
+
+    let outputs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.outputs.set_failover(&sink_name, enabled);
         crate::commands::profiles::autosave_active(&mixer);
         mixer.outputs.clone()
     };
