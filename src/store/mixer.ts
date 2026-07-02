@@ -137,6 +137,11 @@ interface MixerStore {
   renameApp: (stream: AppStream, alias: string) => Promise<void>;
 }
 
+/** Structural equality via JSON, to skip no-op store writes on each poll and
+ *  avoid re-rendering the whole board when nothing changed (TD-029). */
+const jsonEqual = (a: unknown, b: unknown): boolean =>
+  JSON.stringify(a) === JSON.stringify(b);
+
 export const useMixerStore = create<MixerStore>((set, get) => ({
   channels: [],
   appStreams: [],
@@ -273,7 +278,11 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   fetchAppStreams: async () => {
     try {
       const appStreams = await invoke<AppStream[]>("get_app_streams");
-      set({ appStreams, error: null });
+      const s = get();
+      const patch: Partial<MixerStore> = {};
+      if (!jsonEqual(s.appStreams, appStreams)) patch.appStreams = appStreams;
+      if (s.error !== null) patch.error = null;
+      if (Object.keys(patch).length) set(patch);
     } catch (e) {
       set({ error: String(e) });
     }
@@ -349,7 +358,13 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
         invoke<Record<string, string | null>>("get_resolved_outputs"),
         invoke<Record<string, boolean>>("get_channel_failover"),
       ]);
-      set({ outputDevices, channelOutputs, resolvedOutputs, channelFailover });
+      const s = get();
+      const patch: Partial<MixerStore> = {};
+      if (!jsonEqual(s.outputDevices, outputDevices)) patch.outputDevices = outputDevices;
+      if (!jsonEqual(s.channelOutputs, channelOutputs)) patch.channelOutputs = channelOutputs;
+      if (!jsonEqual(s.resolvedOutputs, resolvedOutputs)) patch.resolvedOutputs = resolvedOutputs;
+      if (!jsonEqual(s.channelFailover, channelFailover)) patch.channelFailover = channelFailover;
+      if (Object.keys(patch).length) set(patch);
     } catch (e) {
       set({ error: String(e) });
     }
@@ -454,7 +469,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   fetchSeenApps: async () => {
     try {
       const seenApps = await invoke<SeenApp[]>("get_seen_apps");
-      set({ seenApps });
+      if (!jsonEqual(get().seenApps, seenApps)) set({ seenApps });
     } catch (e) {
       set({ error: String(e) });
     }
