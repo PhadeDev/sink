@@ -1,7 +1,21 @@
 use tauri::State;
 
-use crate::persistence::buses::BusDef;
+use crate::audio::backend::AudioBackend;
+use crate::commands::routing::MAX_VOLUME;
+use crate::persistence::buses::{is_bus_name, BusDef};
 use crate::state::AppState;
+
+/// Re-apply a mix's persisted volume/mute to its node. Bus nodes are born at
+/// unity/unmuted, so this restores the saved level after create/rename/load.
+/// Best-effort: a routing failure shouldn't abort bringing the mix up.
+pub(crate) fn apply_bus_level(backend: &dyn AudioBackend, def: &BusDef) {
+    if def.volume_percent != 100 {
+        let _ = backend.set_sink_volume(&def.name, def.volume_percent);
+    }
+    if def.muted {
+        let _ = backend.set_sink_mute(&def.name, true);
+    }
+}
 
 /// The user's mixes (buses) with their member channels.
 #[tauri::command]
@@ -42,7 +56,7 @@ pub fn add_bus(state: State<'_, AppState>, label: String) -> Result<(), String> 
 }
 
 /// Rename a mix. The node is recreated so recorders immediately see the
-/// new name (the node name stays stable, so OBS configs keep working —
+/// new name (the node name stays stable, so OBS configs keep working -
 /// capture re-attaches automatically).
 #[tauri::command]
 pub fn rename_bus(state: State<'_, AppState>, name: String, label: String) -> Result<(), String> {
@@ -71,6 +85,8 @@ pub fn rename_bus(state: State<'_, AppState>, name: String, label: String) -> Re
         .backend
         .set_bus_members(&def.name, &def.effective_members(&all))
         .map_err(|e| e.to_string())?;
+    // The node was recreated fresh; restore this mix's saved level.
+    apply_bus_level(state.backend.as_ref(), &def);
 
     defs.save().map_err(|e| e.to_string())?;
     let mixer = state.lock_mixer()?;
@@ -101,7 +117,7 @@ pub fn set_bus_members(
     channels: Vec<String>,
 ) -> Result<(), String> {
     // Validate against the definition set first, so a rejected request
-    // (master mix, unknown name) never reaches the backend — otherwise
+    // (master mix, unknown name) never reaches the backend - otherwise
     // backend membership and the persisted definition could diverge.
     let stored = {
         let mixer = state.lock_mixer()?;
@@ -151,6 +167,47 @@ pub fn set_bus_exclude(
             .buses
             .set_exclude(&name, exclude, &all)
             .map_err(|e| e.to_string())?;
+        crate::commands::profiles::autosave_active(&mixer);
+        mixer.buses.clone()
+    };
+    defs.save().map_err(|e| e.to_string())
+}
+
+/// Set a mix's playback level (0-150%) - what recorders hear. Unlike
+/// `set_channel_volume`, this accepts mix nodes (including the master mix,
+/// whose reserved name `set_channel_volume` rejects) and persists the level.
+#[tauri::command]
+pub fn set_bus_volume(state: State<'_, AppState>, name: String, volume: u8) -> Result<(), String> {
+    if !is_bus_name(&name) {
+        return Err(format!("unknown mix: {name}"));
+    }
+    let volume = volume.min(MAX_VOLUME);
+    state
+        .backend
+        .set_sink_volume(&name, volume)
+        .map_err(|e| e.to_string())?;
+    let defs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.buses.set_volume(&name, volume).map_err(|e| e.to_string())?;
+        crate::commands::profiles::autosave_active(&mixer);
+        mixer.buses.clone()
+    };
+    defs.save().map_err(|e| e.to_string())
+}
+
+/// Mute or unmute a mix for recorders. Persisted, and accepts the master mix.
+#[tauri::command]
+pub fn set_bus_mute(state: State<'_, AppState>, name: String, muted: bool) -> Result<(), String> {
+    if !is_bus_name(&name) {
+        return Err(format!("unknown mix: {name}"));
+    }
+    state
+        .backend
+        .set_sink_mute(&name, muted)
+        .map_err(|e| e.to_string())?;
+    let defs = {
+        let mut mixer = state.lock_mixer()?;
+        mixer.buses.set_muted(&name, muted).map_err(|e| e.to_string())?;
         crate::commands::profiles::autosave_active(&mixer);
         mixer.buses.clone()
     };

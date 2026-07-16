@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Sink — design system ported from the Sink.zip prototype
+   Sink - design system ported from the Sink.zip prototype
    (Echo tokens, dark theme) on top of a frameless Tauri window.
    ============================================================ */
 
-/* Brand font — Fira Code (self-hosted) */
+/* Brand font - Fira Code (self-hosted) */
 @font-face {
   font-family: "Fira Code";
   font-weight: 300;
@@ -681,7 +681,7 @@ body,
   /* The zone colors are fixed to the TRACK (not the fill) and revealed by
    * a clip-path, so green/amber/red are calibrated positions: green below
    * −6 dBFS (70.8%), amber to −3 dBFS (84.1%), red above. Red genuinely
-   * means "about to clip" — it can't appear at the tip of a quiet bar. */
+   * means "about to clip" - it can't appear at the tip of a quiet bar. */
   background: linear-gradient(
     to top,
     var(--online) 0%,
@@ -1162,7 +1162,7 @@ body,
   color: var(--accent-hover);
 }
 
-/* stream mix bus strip (record bus — amber accents) */
+/* stream mix bus strip (record bus - amber accents) */
 .strip.bus-strip {
   border-color: #46350f;
   background: linear-gradient(180deg, rgba(245, 158, 11, 0.05), var(--bg-surface) 38%);
@@ -1209,7 +1209,7 @@ body,
   font-size: 16px;
 }
 
-/* popover menu — layered above modals (z 50): the EQ modal opens its
+/* popover menu - layered above modals (z 50): the EQ modal opens its
    preset menu as a popover, which must never render under the scrim. */
 .menu {
   position: absolute;
@@ -1466,11 +1466,56 @@ body,
 /* error banner */
 .error-banner {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-7);
   background: rgba(239, 68, 68, 0.12);
   border-bottom: 1px solid rgba(239, 68, 68, 0.35);
   color: #fca5a5;
   font-size: var(--fs-meta);
+}
+.error-banner-msg {
+  flex: 1;
+  min-width: 0;
+}
+.error-banner-x {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.error-banner-x:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+.error-banner-x:focus-visible {
+  outline: 2px solid #fca5a5;
+  outline-offset: 1px;
+}
+
+/* Global hover tooltip (see components/Tooltip.tsx): replaces the native
+   `title` popups so timing and on-screen clamping are ours to control.
+   Positioned imperatively; sits above modals and menus. */
+.app-tooltip {
+  position: fixed;
+  z-index: 200;
+  max-width: 280px;
+  padding: 6px 9px;
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--fg-primary);
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  white-space: normal;
 }
 
 /* DSP tuning sliders (mic processing card): inset under their stage's
@@ -1783,6 +1828,9 @@ body,
 }
 .modal.eqm-modal {
   width: min(640px, calc(100vw - 48px));
+  /* Never taller than the window; scroll the whole panel on short screens. */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
 }
 .eqm-head {
   display: flex;
@@ -1800,10 +1848,14 @@ body,
 .eqm-curve {
   width: 100%;
   height: auto;
-  background: var(--bg-main);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  /* Labels live in gutters outside the plot; the rect carries the frame. */
+  background: transparent;
   touch-action: none;
+}
+.eqm-plot {
+  fill: var(--bg-main);
+  stroke: var(--border);
+  rx: 6px;
 }
 .eqm-curve.off {
   opacity: 0.45;
@@ -1842,8 +1894,9 @@ body,
   font-family: inherit;
   user-select: none;
 }
-.eqm-axis-label.freq {
-  text-anchor: middle;
+.eqm-axis-label.db {
+  text-anchor: end;
+  dominant-baseline: middle;
 }
 .eqm-line {
   fill: none;
@@ -1857,13 +1910,19 @@ body,
   stroke: none;
 }
 .eqm-dot {
-  /* fill = the band's color (inline style). */
+  /* fill = the band's color (inline style). Gestures live on .eqm-hit
+     underneath, so the visible dot must not swallow pointer events. */
   stroke: var(--bg-main);
   stroke-width: 2;
-  cursor: grab;
+  pointer-events: none;
 }
 .eqm-dot.sel {
   stroke: var(--fg-primary);
+}
+/* Oversized invisible target so the small dot is easy to grab. */
+.eqm-hit {
+  fill: transparent;
+  cursor: grab;
 }
 .eqm-chip {
   flex: 0 0 auto;
@@ -1871,12 +1930,47 @@ body,
   height: 8px;
   border-radius: 50%;
 }
+.eqm-bandlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.eqm-bands-viewport {
+  position: relative;
+}
+/* Fade the bottom edge so a clipped row reads as "scroll for more", not a bug. */
+.eqm-bands-viewport::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 16px;
+  background: linear-gradient(to top, var(--bg-surface), transparent);
+  pointer-events: none;
+}
 .eqm-bands {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
   max-height: 220px;
   overflow-y: auto;
+  /* keep rows clear of the scrollbar and the bottom fade */
+  padding-right: 4px;
+  padding-bottom: 8px;
+}
+.eqm-bands::-webkit-scrollbar {
+  width: 8px;
+}
+.eqm-bands::-webkit-scrollbar-track {
+  background: transparent;
+}
+.eqm-bands::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.eqm-bands::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
 }
 .eqm-band {
   display: flex;
@@ -1891,7 +1985,9 @@ body,
   background: var(--bg-surface-hover);
 }
 .eqm-kind {
-  flex: 1;
+  /* Fixed width so "Peak" and "High shelf" share one edge and the row
+     controls stay aligned; the delete button floats to the far right. */
+  flex: 0 0 104px;
   min-width: 0;
   height: 26px;
   padding: 0 22px 0 var(--sp-2);
@@ -2032,4 +2128,111 @@ button.menu-item {
 .eqm-preset-apply {
   flex: 1;
   min-width: 0;
+}
+.eqm-iconbtn {
+  padding: 7px;
+}
+/* Persistent gesture legend under the curve (drag / scroll / double-click). */
+.eqm-hint {
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+}
+/* Inside the EQ modal the preamp isn't part of a signal chain, so drop the
+   Mic screen's indent + rail that the shared .dsp-row carries. */
+.eqm-modal .dsp-row {
+  margin-left: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-left: none;
+}
+/* Delete floats to the row's right edge, set apart from the value fields. */
+.eqm-band .eqm-remove {
+  margin-left: auto;
+}
+.eqm-remove:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.eqm-remove:disabled:hover {
+  background: transparent;
+  color: var(--fg-secondary);
+}
+.eqm-remove.danger {
+  color: var(--danger);
+}
+/* Keyboard focus parity: the same accent ring the mouse never needs. */
+.eqm-field input:focus-visible,
+.eqm-kind:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.eqm-remove:focus-visible,
+.eqm-add:focus-visible,
+.eqm-iconbtn:focus-visible,
+.eqm-preset-apply:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* Preset menu: labeled sections replace the per-row source icon. */
+.eqm-preset-head {
+  padding: 6px var(--sp-3) 2px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.eqm-preset-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The Presets button borrows the active preset's name; cap it so a long
+   user name can't push the reset icon off the header. */
+.eqm-preset-btn-label {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Save section caption; brighter when the curve is an unsaved custom one. */
+.eqm-save-label {
+  padding: 6px var(--sp-3) 4px;
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+}
+.eqm-save-label.custom {
+  color: var(--fg-secondary);
+}
+/* Import + Export share one row as equal-width buttons. */
+.eqm-io-row {
+  display: flex;
+  gap: var(--sp-1);
+  padding: 4px 6px;
+}
+.eqm-io-btn {
+  flex: 1;
+  justify-content: center;
+}
+.eqm-io-btn.on {
+  border-color: var(--accent);
+  color: var(--fg-primary);
+}
+.eqm-preset-apply .ms {
+  flex: 0 0 auto;
+}
+.eqm-preset-confirm {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  margin-right: 4px;
+}
+.eqm-preset-row .eqm-preset-confirm .eqm-remove {
+  margin-left: 0;
+  margin-right: 0;
 }

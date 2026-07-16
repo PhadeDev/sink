@@ -21,7 +21,7 @@ fn unit_path() -> Result<PathBuf, SinkError> {
 fn render_unit() -> Result<String, SinkError> {
     let exe = std::env::current_exe()
         .map_err(|e| SinkError::Config(format!("cannot resolve own executable path: {e}")))?;
-    // Quote for systemd's unit syntax so paths with spaces (or quotes —
+    // Quote for systemd's unit syntax so paths with spaces (or quotes -
     // however unlikely) don't split into command + arguments.
     let exe = format!(
         "\"{}\"",

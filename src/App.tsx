@@ -7,6 +7,7 @@ import { MicScreen } from "./components/Mic/MicScreen";
 import { OnboardingModal } from "./components/Onboarding/OnboardingModal";
 import { SettingsScreen } from "./components/Settings/SettingsScreen";
 import { Ms } from "./components/Icons";
+import { Tooltip } from "./components/Tooltip";
 import { useAudio } from "./hooks/useAudio";
 import { useMixerStore } from "./store/mixer";
 
@@ -23,6 +24,7 @@ export default function App() {
   const [nav, setNav] = useState<NavId>("mixer");
   const [version, setVersion] = useState("");
   const error = useMixerStore((s) => s.error);
+  const clearError = useMixerStore((s) => s.clearError);
 
   useEffect(() => {
     void getVersion().then(setVersion);
@@ -38,8 +40,18 @@ export default function App() {
       <TitleBar screen={current.label} />
 
       {error && (
-        <div className="error-banner">
-          <strong>Audio error:</strong> {error}
+        <div className="error-banner" role="alert">
+          <span className="error-banner-msg">
+            <strong>Audio error:</strong> {error}
+          </span>
+          <button
+            className="error-banner-x"
+            aria-label="Dismiss error"
+            title="Dismiss"
+            onClick={clearError}
+          >
+            <Ms name="close" style={{ fontSize: 16 }} />
+          </button>
         </div>
       )}
 
@@ -78,6 +90,7 @@ export default function App() {
       </div>
 
       <OnboardingModal />
+      <Tooltip />
     </div>
   );
 }

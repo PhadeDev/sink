@@ -73,7 +73,7 @@ pub fn set_profile_trigger(
 }
 
 /// Apply a saved profile: reconcile the channel **layout** (create missing
-/// channels, remove extras — streams evacuate to the default first), then
+/// channels, remove extras - streams evacuate to the default first), then
 /// apply volumes/mutes/outputs, replace the assignment set, and clear the
 /// auto-route ledger so the new routing is enforced within the next poll.
 #[tauri::command]
@@ -140,7 +140,7 @@ pub fn load_profile(
         {
             eprintln!("sink: profile failover for {} failed: {e}", channel.name);
         }
-        // EQ: non-fatal like output/failover — one channel's insert failing
+        // EQ: non-fatal like output/failover - one channel's insert failing
         // must not abort the whole profile load.
         if let Err(e) = state
             .backend
@@ -178,6 +178,7 @@ pub fn load_profile(
         {
             eprintln!("sink: profile members for mix {} failed: {e}", bus.name);
         }
+        crate::commands::buses::apply_bus_level(state.backend.as_ref(), bus);
     }
 
     let (defs, assignments, outputs, eq) = {
@@ -222,7 +223,7 @@ pub fn load_profile(
 
 /// Create a profile with a clean slate: the classic four channels at
 /// 100%/unmuted, no assignments, all outputs following the default. It is
-/// saved but not applied — load it to start fresh.
+/// saved but not applied - load it to start fresh.
 #[tauri::command]
 pub fn create_blank_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     let name = profiles::sanitize_name(&name).map_err(|e| e.to_string())?;

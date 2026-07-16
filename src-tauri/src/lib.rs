@@ -66,6 +66,8 @@ pub fn run() {
             commands::buses::remove_bus,
             commands::buses::set_bus_members,
             commands::buses::set_bus_exclude,
+            commands::buses::set_bus_volume,
+            commands::buses::set_bus_mute,
             commands::routing::route_app_to_channel,
             commands::routing::set_channel_volume,
             commands::routing::toggle_channel_mute,

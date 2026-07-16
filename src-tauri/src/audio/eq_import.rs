@@ -59,7 +59,7 @@ fn parse_filter_line(line: &str) -> Option<EqBand> {
 }
 
 /// Parse an AutoEq result block into a (disabled, preview-ready) EqConfig.
-/// Keeps the first MAX_EQ_BANDS filters in file order — AutoEq emits them
+/// Keeps the first MAX_EQ_BANDS filters in file order - AutoEq emits them
 /// in descending importance already.
 pub fn parse_autoeq(text: &str) -> Result<EqConfig, SinkError> {
     let mut preamp_db = 0.0f32;

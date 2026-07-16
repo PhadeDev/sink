@@ -8,7 +8,7 @@
 
 SteelSeries Sonar for Linux. Built on PipeWire.
 
-Route each app to its own channel — Game, Chat, Music — and control
+Route each app to its own channel - Game, Chat, Music - and control
 volume, mute, and output device per channel. Build mixes for OBS and a
 processed virtual microphone for voice chat.
 
@@ -21,21 +21,21 @@ processed virtual microphone for voice chat.
 
 ## Features
 
-- **Channels** — per-app routing with volume, mute, meters, and a choice
+- **Channels** - per-app routing with volume, mute, meters, and a choice
   of output device per channel
-- **Apps** — running apps appear automatically; assign once, remembered
+- **Apps** - running apps appear automatically; assign once, remembered
   forever
-- **Mixes** — recordable sources for OBS. Master Mix carries everything;
+- **Mixes** - recordable sources for OBS. Master Mix carries everything;
   custom mixes can carry "everything except music" and stay current as
-  channels change. In OBS, add a mix as an audio input — not Desktop Audio.
-- **Equalizer** — per-channel parametric EQ (up to 10 bands) with a
+  channels change. In OBS, add a mix as an audio input - not Desktop Audio.
+- **Equalizer** - per-channel parametric EQ (up to 10 bands) with a
   draggable response curve, bundled community presets, and import/export
   including AutoEq text blocks
-- **Microphone** — noise gate, compressor and limiter into a virtual mic
+- **Microphone** - noise gate, compressor and limiter into a virtual mic
   you select in Discord or OBS. Pairs well with
   [NoiseTorch](https://github.com/noisetorch/NoiseTorch) on the input for
   noise suppression before the chain.
-- **Profiles** — save and switch full layouts from the tray
+- **Profiles** - save and switch full layouts from the tray
 
 ![Mic](docs/mic.png)
 ![Apps](docs/apps.png)

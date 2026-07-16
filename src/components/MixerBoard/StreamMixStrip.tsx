@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useMixerStore } from "../../store/mixer";
 import type { BusDef } from "../../types";
 import { busMembers, MASTER_BUS, MAX_VOLUME } from "../../types";
@@ -12,7 +11,7 @@ import { VuMeter } from "./VuMeter";
 
 /**
  * A mix (record bus): aggregates the chosen channels into a capturable
- * source. The label is exactly the device name recorders display — rename
+ * source. The label is exactly the device name recorders display - rename
  * it and OBS sees the new name. Volume/mute shape what recorders hear,
  * not what you hear.
  */
@@ -25,9 +24,9 @@ export function BusStrip({ bus }: { bus: BusDef }) {
   const level = useMixerStore((s) => s.levels[bus.name]);
   const monitoring = useMixerStore((s) => s.monitors[bus.name] ?? false);
   const toggleMonitor = useMixerStore((s) => s.toggleMonitor);
+  const setBusVolume = useMixerStore((s) => s.setBusVolume);
+  const setBusMute = useMixerStore((s) => s.setBusMute);
 
-  const [volume, setVolume] = useState(100);
-  const [muted, setMuted] = useState(false);
   const [managing, setManaging] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -36,30 +35,19 @@ export function BusStrip({ bus }: { bus: BusDef }) {
   // The master mix always exists and carries every channel.
   const isMaster = bus.name === MASTER_BUS;
 
+  // Volume/mute live on the persisted bus, so they survive remounts, profile
+  // switches, and restarts (the backend re-applies them to the fresh node).
+  const volume = bus.volume_percent;
+  const muted = bus.muted;
+
   const amplitude = Math.max(level?.[0] ?? 0, level?.[1] ?? 0);
 
-  const applyVolume = (v: number) => {
-    setVolume(v);
-    void invoke("set_channel_volume", { sinkName: bus.name, volume: v }).catch(() => {});
-  };
-  const toggleMute = () => {
-    const next = !muted;
-    setMuted(next);
-    void invoke("toggle_channel_mute", { sinkName: bus.name, muted: next }).catch(() => {});
-  };
+  const applyVolume = (v: number) => void setBusVolume(bus.name, v);
+  const toggleMute = () => void setBusMute(bus.name, !muted);
   const commitRename = () => {
     setEditing(false);
     const label = draft.trim();
-    if (label && label !== bus.label) {
-      void renameBus(bus.name, label).then(() => {
-        // Renaming recreates the node (fresh at 100%, unmuted) — re-apply
-        // this strip's level so the UI and backend stay in step.
-        if (volume !== 100)
-          void invoke("set_channel_volume", { sinkName: bus.name, volume }).catch(() => {});
-        if (muted)
-          void invoke("toggle_channel_mute", { sinkName: bus.name, muted: true }).catch(() => {});
-      });
-    }
+    if (label && label !== bus.label) void renameBus(bus.name, label);
   };
   // What this mix actually carries (mode-aware).
   const allNames = channels.map((c) => c.name);
@@ -105,7 +93,7 @@ export function BusStrip({ bus }: { bus: BusDef }) {
         ) : (
           <div
             className="strip-name strip-name-editable"
-            title='Double-click to rename — recorders see this name'
+            title='Double-click to rename - recorders see this name'
             onDoubleClick={() => {
               setDraft(bus.label);
               setEditing(true);
@@ -154,7 +142,7 @@ export function BusStrip({ bus }: { bus: BusDef }) {
               <div className="menu-div" />
               <div
                 className="menu-item"
-                title="New channels join this mix automatically — keep the ones you don't want unchecked"
+                title="New channels join this mix automatically - keep the ones you don't want unchecked"
                 onClick={() => void setBusExclude(bus.name, !bus.exclude)}
               >
                 <Ms
@@ -191,7 +179,7 @@ export function BusStrip({ bus }: { bus: BusDef }) {
           className={"sbtn" + (monitoring ? " on-mon" : "")}
           onClick={() => void toggleMonitor(bus.name)}
           aria-pressed={monitoring}
-          title="Monitor — hear what this mix carries on the default output"
+          title="Monitor - hear what this mix carries on the default output"
         >
           <Ms name="headphones" style={{ fontSize: 16 }} />
         </button>

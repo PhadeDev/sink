@@ -39,7 +39,7 @@ function DeviceRow({
   onPick: (name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const currentDesc = devices.find((d) => d.name === current)?.description ?? current ?? "—";
+  const currentDesc = devices.find((d) => d.name === current)?.description ?? current ?? "-";
 
   return (
     <div className="row">
@@ -253,8 +253,8 @@ export function SettingsScreen() {
                 {backendNative === null
                   ? "…"
                   : backendNative
-                    ? "Native PipeWire (pipewire-rs) — live metering, passive routing"
-                    : "pactl fallback — native engine unavailable on this system"}
+                    ? "Native PipeWire (pipewire-rs) - live metering, passive routing"
+                    : "pactl fallback - native engine unavailable on this system"}
               </div>
             </div>
             {backendNative !== null && (
@@ -307,8 +307,8 @@ export function SettingsScreen() {
         title="Reset Sink?"
       >
         <p className="modal-text">
-          Everything you've set up — channels, mixes, profiles, app assignments,
-          history and preferences — is permanently deleted, and Sink relaunches
+          Everything you've set up - channels, mixes, profiles, app assignments,
+          history and preferences - is permanently deleted, and Sink relaunches
           as if freshly installed.
         </p>
         <div className="modal-btns">

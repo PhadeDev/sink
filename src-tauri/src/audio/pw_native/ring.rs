@@ -29,7 +29,7 @@ impl Ring {
         self.buf.len() - 1
     }
 
-    /// Push samples; drops the oldest unread data on overflow (live audio —
+    /// Push samples; drops the oldest unread data on overflow (live audio -
     /// stale samples are worthless).
     pub fn push(&self, samples: &[f32]) {
         let mask = self.mask();

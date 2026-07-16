@@ -62,7 +62,7 @@ pub struct PropsState {
     pub muted: Option<bool>,
 }
 
-/// Parse volume/mute out of a Props pod (best effort — missing or foreign
+/// Parse volume/mute out of a Props pod (best effort - missing or foreign
 /// fields are ignored).
 pub fn parse_props(pod: &Pod) -> PropsState {
     let mut state = PropsState::default();

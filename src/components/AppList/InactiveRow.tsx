@@ -32,7 +32,7 @@ export function InactiveRow({ app }: { app: SeenApp }) {
         />
         <button
           className="rename-btn row-action"
-          title="Ignore — hide this app from Sink"
+          title="Ignore - hide this app from Sink"
           aria-label={`Ignore ${app.display_name}`}
           onClick={() => void setAppIgnored(app, true)}
         >
@@ -40,7 +40,7 @@ export function InactiveRow({ app }: { app: SeenApp }) {
         </button>
         <button
           className="rename-btn row-action"
-          title="Forget — erase from history (and its routing/alias)"
+          title="Forget - erase from history (and its routing/alias)"
           aria-label={`Forget ${app.display_name}`}
           onClick={() => void forgetApp(app)}
         >

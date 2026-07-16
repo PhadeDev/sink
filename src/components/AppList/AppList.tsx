@@ -114,7 +114,7 @@ export function AppList() {
                       </button>
                       <button
                         className="rename-btn row-action"
-                        title="Forget — erase from history"
+                        title="Forget - erase from history"
                         aria-label={`Forget ${app.display_name}`}
                         onClick={() => void forgetApp(app)}
                       >

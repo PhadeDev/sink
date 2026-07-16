@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn malformed_prefs_degrade_to_defaults() {
         // Corrupt / partially-written files must never panic or block
-        // launch — they fall back to defaults.
+        // launch - they fall back to defaults.
         assert_eq!(Prefs::parse(""), Prefs::default());
         assert_eq!(Prefs::parse("{not json"), Prefs::default());
         assert_eq!(Prefs::parse("[]"), Prefs::default());

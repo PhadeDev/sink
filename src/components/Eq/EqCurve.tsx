@@ -3,13 +3,14 @@ import type { EqBand, EqConfig } from "../../types";
 import { EQ_GAIN_RANGE_DB } from "../../types";
 import { curvePoints, freqToX, xToFreq } from "../../lib/eqMath";
 
-// SVG coordinate space; the element scales responsively.
+// SVG coordinate space; the element scales responsively. All labels live
+// in gutters OUTSIDE the plot rectangle: regions above, dB left, Hz below.
 const W = 600;
-const H = 252;
-const PAD = 8;
-/** Region-label strip at the top and frequency-label strip at the bottom. */
-const HEAD = 20;
-const FOOT = 16;
+const H = 256;
+const LEFT = 46;
+const RIGHT = 8;
+const HEAD = 22;
+const FOOT = 18;
 const TOP = HEAD + 4;
 const BOTTOM = H - FOOT - 4;
 
@@ -17,8 +18,8 @@ const dbToY = (db: number) =>
   TOP + ((EQ_GAIN_RANGE_DB - db) / (2 * EQ_GAIN_RANGE_DB)) * (BOTTOM - TOP);
 const yToDb = (y: number) =>
   EQ_GAIN_RANGE_DB - ((y - TOP) / (BOTTOM - TOP)) * 2 * EQ_GAIN_RANGE_DB;
-const fxToX = (fx: number) => PAD + fx * (W - 2 * PAD);
-const xToFx = (x: number) => (x - PAD) / (W - 2 * PAD);
+const fxToX = (fx: number) => LEFT + fx * (W - LEFT - RIGHT);
+const xToFx = (x: number) => (x - LEFT) / (W - LEFT - RIGHT);
 
 /** Sonar-style frequency regions across the top of the plot. */
 const REGIONS: { label: string; to: number }[] = [
@@ -140,20 +141,27 @@ export function EqCurve({ config, selected, onSelect, onBandChange }: EqCurvePro
       role="img"
       aria-label="EQ frequency response"
     >
-      {/* frequency-region strip */}
-      {regions.map(({ label, x0, x1 }, i) => (
+      {/* the plot area itself; everything textual sits outside it */}
+      <rect
+        className="eqm-plot"
+        x={LEFT}
+        y={TOP}
+        width={W - LEFT - RIGHT}
+        height={BOTTOM - TOP}
+      />
+
+      {/* frequency-region strip (above the plot). The gapped pills already
+          delineate regions, so no full-height dividers clutter the plot. */}
+      {regions.map(({ label, x0, x1 }) => (
         <g key={label}>
-          <rect className="eqm-region" x={x0 + 1} y={PAD - 4} width={x1 - x0 - 2} height={HEAD - 4} rx={3} />
-          <text className="eqm-region-label" x={(x0 + x1) / 2} y={PAD + HEAD / 2 + 1}>
+          <rect className="eqm-region" x={x0 + 1} y={2} width={x1 - x0 - 2} height={HEAD - 4} rx={3} />
+          <text className="eqm-region-label" x={(x0 + x1) / 2} y={2 + (HEAD - 4) / 2 + 1}>
             {label}
           </text>
-          {i > 0 && (
-            <line className="eqm-grid region" x1={x0} x2={x0} y1={TOP} y2={BOTTOM} />
-          )}
         </g>
       ))}
 
-      {/* vertical grid + frequency labels (with units, Sonar-style) */}
+      {/* vertical grid + frequency labels (below the plot) */}
       {GRID_FREQS.map((f, i) => {
         const x = fxToX(freqToX(f));
         // Edge labels hug inward so they don't clip at the borders.
@@ -164,9 +172,9 @@ export function EqCurve({ config, selected, onSelect, onBandChange }: EqCurvePro
             <line className="eqm-grid" x1={x} x2={x} y1={TOP} y2={BOTTOM} />
             <text
               className="eqm-axis-label freq"
-              x={edge === "start" ? x + 2 : edge === "end" ? x - 2 : x}
+              x={edge === "start" ? x - 4 : edge === "end" ? x + 4 : x}
               y={H - 5}
-              textAnchor={edge}
+              style={{ textAnchor: edge }}
             >
               {fmtFreq(f)}
             </text>
@@ -174,13 +182,13 @@ export function EqCurve({ config, selected, onSelect, onBandChange }: EqCurvePro
         );
       })}
 
-      {/* horizontal grid + dB labels */}
+      {/* horizontal grid + dB labels (left of the plot) */}
       {GRID_DBS_MINOR.map((db) => (
         <line
           key={db}
           className="eqm-grid minor"
-          x1={PAD}
-          x2={W - PAD}
+          x1={LEFT}
+          x2={W - RIGHT}
           y1={dbToY(db)}
           y2={dbToY(db)}
         />
@@ -189,12 +197,12 @@ export function EqCurve({ config, selected, onSelect, onBandChange }: EqCurvePro
         <g key={db}>
           <line
             className={"eqm-grid" + (db === 0 ? " zero" : "")}
-            x1={PAD}
-            x2={W - PAD}
+            x1={LEFT}
+            x2={W - RIGHT}
             y1={dbToY(db)}
             y2={dbToY(db)}
           />
-          <text className="eqm-axis-label" x={PAD + 3} y={dbToY(db) - 4}>
+          <text className="eqm-axis-label db" x={LEFT - 6} y={dbToY(db)}>
             {fmtDb(db)}
           </text>
         </g>
@@ -202,30 +210,43 @@ export function EqCurve({ config, selected, onSelect, onBandChange }: EqCurvePro
 
       <path className="eqm-fill" d={fill} />
       <path className="eqm-line" d={path} />
-      {config.bands.map((band, i) => (
-        <circle
-          key={i}
-          className={"eqm-dot" + (i === selected ? " sel" : "")}
-          style={{ fill: bandColor(i) }}
-          cx={fxToX(freqToX(band.freq_hz))}
-          cy={gainless(band) ? zeroY : dbToY(band.gain_db)}
-          r={i === selected ? 8 : 6}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            onSelect(i);
-            dragIndex.current = i;
-          }}
-          onDoubleClick={() => onBandChange(i, { gain_db: 0 })}
-          onWheel={(e) => {
-            // Scroll tightens/widens the band (Q, or slope on shelves).
-            const dir = e.deltaY > 0 ? -1 : 1;
-            const q = Math.max(0.1, Math.min(10, band.q * (dir > 0 ? 1.12 : 1 / 1.12)));
-            onBandChange(i, { q: Math.round(q * 100) / 100 });
-          }}
-        >
-          <title>{`${Math.round(band.freq_hz)} Hz, ${band.gain_db.toFixed(1)} dB — drag to move, scroll for width, double-click to zero`}</title>
-        </circle>
-      ))}
+      {config.bands.map((band, i) => {
+        const cx = fxToX(freqToX(band.freq_hz));
+        const cy = gainless(band) ? zeroY : dbToY(band.gain_db);
+        return (
+          <g key={i}>
+            {/* Oversized transparent target: the visible dot is small but
+                carries three gestures, so widen where the pointer lands. */}
+            <circle
+              className="eqm-hit"
+              cx={cx}
+              cy={cy}
+              r={15}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                onSelect(i);
+                dragIndex.current = i;
+              }}
+              onDoubleClick={() => onBandChange(i, { gain_db: 0 })}
+              onWheel={(e) => {
+                // Scroll tightens/widens the band (Q, or slope on shelves).
+                const dir = e.deltaY > 0 ? -1 : 1;
+                const q = Math.max(0.1, Math.min(10, band.q * (dir > 0 ? 1.12 : 1 / 1.12)));
+                onBandChange(i, { q: Math.round(q * 100) / 100 });
+              }}
+            >
+              <title>{`${Math.round(band.freq_hz)} Hz, ${band.gain_db.toFixed(1)} dB - drag to move, scroll for width, double-click to zero`}</title>
+            </circle>
+            <circle
+              className={"eqm-dot" + (i === selected ? " sel" : "")}
+              style={{ fill: bandColor(i) }}
+              cx={cx}
+              cy={cy}
+              r={i === selected ? 8 : 6}
+            />
+          </g>
+        );
+      })}
     </svg>
   );
 }

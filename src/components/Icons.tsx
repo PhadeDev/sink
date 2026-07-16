@@ -21,7 +21,7 @@ export function Ms({
   );
 }
 
-/** App logo mark — stylized sink/funnel of soundwaves. */
+/** App logo mark - stylized sink/funnel of soundwaves. */
 export function SinkMark() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">

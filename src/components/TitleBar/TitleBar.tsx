@@ -50,7 +50,7 @@ export function TitleBar({ screen }: { screen: string }) {
         <button
           className="wbtn close"
           aria-label="Close (hide to tray)"
-          title="Hides to tray — quit from the tray menu"
+          title="Hides to tray - quit from the tray menu"
           onClick={() => void win.close()}
         >
           <Ms name="close" />

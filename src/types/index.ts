@@ -1,4 +1,4 @@
-// Mirrors the Rust structs in src-tauri/src/audio/types.rs — keep in sync.
+// Mirrors the Rust structs in src-tauri/src/audio/types.rs - keep in sync.
 
 export interface AppStream {
   index: number;
@@ -139,6 +139,10 @@ export interface BusDef {
   channels: string[];
   /** True = carries everything except `channels`; new channels join automatically. */
   exclude: boolean;
+  /** Playback level recorders hear (0-150%). Persisted with the mix. */
+  volume_percent: number;
+  /** Muted for recorders (they hear silence). Persisted with the mix. */
+  muted: boolean;
 }
 
 /** The channels a mix actually carries, given the full channel set. */

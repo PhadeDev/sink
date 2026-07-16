@@ -10,7 +10,7 @@ use crate::persistence::eq_presets;
 use crate::state::AppState;
 
 /// All channels' EQ configs in one round-trip (channels without an entry
-/// have never been configured — the frontend treats them as default).
+/// have never been configured - the frontend treats them as default).
 #[tauri::command]
 pub fn get_channel_eq_configs(
     state: State<'_, AppState>,

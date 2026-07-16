@@ -58,7 +58,7 @@ export function useAudio() {
     };
   }, [setLevels]);
 
-  // Profile switched from the tray menu — sync the whole UI.
+  // Profile switched from the tray menu - sync the whole UI.
   const onProfileChanged = useMixerStore((s) => s.onProfileChanged);
   useEffect(() => {
     const unlisten = listen<string>("profile-changed", (event) => {

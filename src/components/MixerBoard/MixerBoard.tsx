@@ -13,7 +13,7 @@ const MAX_CHANNELS = 10;
 const MAX_BUSES = 4;
 
 /** Signal-flow group: header row (icon, label, count, optional +) above
- * its strips — per the updated design. */
+ * its strips - per the updated design. */
 function MixGroup({
   kind,
   icon,
@@ -85,7 +85,7 @@ export function MixerBoard() {
 
   // Apps belonging to each channel, for the strip header. Mirrors the
   // membership popover: live streams routed there plus remembered (offline)
-  // assignments — "3 apps" should match the 3 checked rows.
+  // assignments - "3 apps" should match the 3 checked rows.
   const counts = new Map<string, number>();
   const counted = new Set<string>();
   for (const stream of appStreams) {
@@ -181,7 +181,7 @@ export function MixerBoard() {
             icon="podcasts"
             label="Mixes"
             count={`${buses.length}`}
-            hint="Recordable copies of your channels. In OBS, add a mix as an audio input (mic/aux) — not Desktop Audio."
+            hint="Recordable copies of your channels. In OBS, add a mix as an audio input (mic/aux) - not Desktop Audio."
             onAdd={
               buses.filter((b) => b.name !== MASTER_BUS).length < MAX_BUSES
                 ? () => setAddingMix(true)

@@ -29,7 +29,7 @@ const STREAM_CLASS: &str = "Stream/Output/Audio";
 const SINK_CLASS: &str = "Audio/Sink";
 const SOURCE_CLASS: &str = "Audio/Source";
 const VIRTUAL_SOURCE_CLASS: &str = "Audio/Source/Virtual";
-/// node.name prefix of all our internal helper streams (meters, mic chain) —
+/// node.name prefix of all our internal helper streams (meters, mic chain) -
 /// excluded from stream listings and node tracking.
 pub const INTERNAL_PREFIX: &str = "sink-internal-";
 /// node.name prefix of our meter capture streams.
@@ -153,7 +153,7 @@ struct State {
     monitor_links: HashMap<String, LinkSet>,
     /// Links from the mic playback stream into the virtual mic.
     mic_links: LinkSet,
-    /// Per-channel EQ configs (source of truth for chain (re)creation —
+    /// Per-channel EQ configs (source of truth for chain (re)creation -
     /// kept even while disabled so re-enabling restores the bands).
     eq_configs: HashMap<String, EqConfig>,
     /// Live EQ inserts by channel sink name. Presence here *is* "EQ is
@@ -163,12 +163,12 @@ struct State {
     /// EQ playback node id -> node ids it is allowed to feed. Rebuilt
     /// wholesale by every `ensure_all_links` pass; the link police destroys
     /// anything else (WirePlumber routes playback streams to the default
-    /// sink — same leak the mic police exists for).
+    /// sink - same leak the mic police exists for).
     eq_desired_targets: HashMap<u32, std::collections::HashSet<u32>>,
 }
 
 impl State {
-    /// Live node id of the mic playback stream. Resolved lazily — the id
+    /// Live node id of the mic playback stream. Resolved lazily - the id
     /// is only valid once the server has created the stream's node.
     fn mic_playback_node(&self) -> Option<u32> {
         self.mic_streams
@@ -292,7 +292,7 @@ fn setup_and_run(
                                 _ => {}
                             }
                             // A deliberate recreate (mic rename) already has
-                            // a fresh proxy/node — don't double up. For the
+                            // a fresh proxy/node - don't double up. For the
                             // mic the new proxy is set synchronously before
                             // this removal event, so `mic_source.is_some()`
                             // can't tell our own destroy from an external one;
@@ -327,7 +327,7 @@ fn setup_and_run(
                 };
                 match heal {
                     Heal::Recreate(name, label, kind) => {
-                        eprintln!("sink: {name} vanished externally — recreating");
+                        eprintln!("sink: {name} vanished externally - recreating");
                         if let Some(core) = CORE.with(|c| c.borrow().clone()) {
                             match create_node_object(&core, &name, &label, kind) {
                                 Ok(proxy) => {
@@ -393,7 +393,7 @@ fn on_global(
             state.borrow_mut().ports.insert(global.id, entry);
             // Channel and mic wiring both depend on ports of untracked
             // stream nodes (EQ/mic playback streams), so reconcile on every
-            // port event — both are idempotent no-ops until both ends exist.
+            // port event - both are idempotent no-ops until both ends exist.
             ensure_all_links(state);
             ensure_mic_links(state);
         }
@@ -407,7 +407,7 @@ fn on_global(
                     s.links.insert(global.id, (out, inp));
                     // Police the mic playback stream: if anything (e.g. a
                     // session-manager fallback) links it somewhere other
-                    // than the virtual mic, destroy that link — mic audio
+                    // than the virtual mic, destroy that link - mic audio
                     // must never leak into the speakers.
                     let mic_stray = match (s.mic_playback_node(), s.node_by_name(MIC_NODE)) {
                         (Some(playback), mic) if out == playback => {
@@ -418,7 +418,7 @@ fn on_global(
                     // Same policing for EQ playback streams: only the links
                     // the loop planned (device/buses/monitor) may exist. An
                     // EQ node with no plan yet (chain just built, first
-                    // reconcile pending) allows nothing — our own links are
+                    // reconcile pending) allows nothing - our own links are
                     // always created after the plan is recorded.
                     let eq_stray = s
                         .eq_streams
@@ -612,7 +612,7 @@ fn on_node(
         // An enabled EQ config with no live insert: build it against the
         // fresh sink id. Covers both startup (config loaded before the sink
         // exists) and the heal path (sink recreated after an external
-        // destroy) with the same hook — like the meter above.
+        // destroy) with the same hook - like the meter above.
         if !s.eq_streams.contains_key(&node_name) {
             if let Some(config) = s.eq_configs.get(&node_name).filter(|c| c.enabled).cloned() {
                 match EqChainHandle::new(core, &node_name, global.id, &config) {
@@ -668,7 +668,7 @@ fn build_mic_streams(state: &Rc<RefCell<State>>) {
         return;
     }
     // Resolve "follow default" to the actual hardware source at build
-    // time — the capture must be pinned (and must never point at our own
+    // time - the capture must be pinned (and must never point at our own
     // virtual mic, or the chain would eat its own output).
     let mic_target = s.mic_config.input_device.clone().or_else(|| {
         s.default_source_name
@@ -732,7 +732,7 @@ fn desired_pairs(s: &State, channel_id: u32, target_id: u32) -> Vec<(u32, u32)> 
         return Vec::new();
     }
     // Mono source into a multi-channel target: fan out to every input
-    // (e.g. listening to the mic — both ears, not just FL).
+    // (e.g. listening to the mic - both ears, not just FL).
     if monitors.len() == 1 && inputs.len() > 1 {
         let m = monitors[0];
         return inputs.iter().map(|p| (m.id, p.id)).collect();
@@ -765,7 +765,7 @@ fn pick_fallback_sink<'a>(candidates: impl Iterator<Item = (u32, &'a str, i64)>)
 }
 
 /// The real output sink to fall back to when a follow-default channel's
-/// default has no live node — e.g. the device was unplugged and WirePlumber
+/// default has no live node - e.g. the device was unplugged and WirePlumber
 /// hasn't reassigned the default. Without it such a channel gets no links and
 /// goes silent (the field-reported "no audio on speakers when headset off").
 fn fallback_sink(s: &State) -> Option<u32> {
@@ -835,10 +835,10 @@ fn create_links(
 
 /// Reconcile loopback links for every virtual channel:
 /// - monitor → chosen output device (or the system default when unset /
-///   the chosen device is gone — automatic failover)
+///   the chosen device is gone - automatic failover)
 /// - monitor → Stream Mix source (Phase 5, for OBS capture)
 ///
-/// Idempotent — existing correct links are left untouched.
+/// Idempotent - existing correct links are left untouched.
 fn ensure_all_links(state: &Rc<RefCell<State>>) {
     let Some(core) = CORE.with(|c| c.borrow().clone()) else {
         return;
@@ -874,7 +874,7 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
     s.channel_targets.retain(|name, _| channel_names.contains(name));
 
     // The link plan for every live EQ insert, rebuilt from scratch each
-    // pass — the link police destroys anything an EQ playback node feeds
+    // pass - the link police destroys anything an EQ playback node feeds
     // that isn't in here.
     let mut eq_targets: HashMap<u32, std::collections::HashSet<u32>> = HashMap::new();
 
@@ -885,7 +885,7 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
             None => continue,
         };
         // With a live EQ insert, every outgoing link (device, buses,
-        // monitor) re-sources from its playback node — one coherent source,
+        // monitor) re-sources from its playback node - one coherent source,
         // so all listeners hear the same (EQ'd, equally delayed) audio.
         let source_id = resolve_source(s.eq_playback_node(sink_name), channel_id);
 
@@ -974,7 +974,7 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
         .copied();
     let monitored: Vec<String> = s.monitored.iter().cloned().collect();
     for name in monitored {
-        // Monitoring an EQ'd channel listens to the insert's output — the
+        // Monitoring an EQ'd channel listens to the insert's output - the
         // same audio its device/buses hear.
         let node_id = node_ids
             .get(&name)
@@ -990,7 +990,7 @@ fn ensure_all_links(state: &Rc<RefCell<State>>) {
             _ => Vec::new(),
         };
         // A channel already playing to the default output needs no extra
-        // links (and duplicates would fail) — monitoring is a no-op there.
+        // links (and duplicates would fail) - monitoring is a no-op there.
         if let Some(existing) = s.channel_links.get(&name) {
             let existing_pairs: Vec<(u32, u32)> =
                 existing.iter().map(|(o, i, _)| (*o, *i)).collect();
@@ -1048,7 +1048,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         Cmd::CreateSink { name, label, reply } => {
             let mut s = state.borrow_mut();
             if s.node_by_name(&name).is_some() {
-                // Already exists (e.g. leftover from a previous run) — the
+                // Already exists (e.g. leftover from a previous run) - the
                 // registry handler has adopted it. Still ours to keep alive.
                 s.desired.insert(name, (label, 0));
                 let _ = reply.send(Ok(()));
@@ -1115,7 +1115,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 let _ = registry.destroy_global(id);
                 let _ = reply.send(Ok(()));
             } else {
-                // Nothing to destroy — idempotent success.
+                // Nothing to destroy - idempotent success.
                 let _ = reply.send(Ok(()));
             }
         }
@@ -1210,7 +1210,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
         Cmd::CreateBus { name, label, reply } => {
             let mut s = state.borrow_mut();
             if s.bus_sources.contains_key(&name) || s.node_by_name(&name).is_some() {
-                s.desired.insert(name, (label, 1)); // adopted — keep alive
+                s.desired.insert(name, (label, 1)); // adopted - keep alive
                 let _ = reply.send(Ok(()));
                 return;
             }
@@ -1340,7 +1340,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     && prev.output_label != config.output_label;
                 let mut orphaned: Vec<u32> = Vec::new();
                 if needs_recreate {
-                    // Remember who was capturing the mic (Discord, OBS …) —
+                    // Remember who was capturing the mic (Discord, OBS …) -
                     // destroying the node drops them onto the fallback
                     // source, and they'd silently stay there.
                     if let Some(mic) = s.node_by_name(MIC_NODE) {
@@ -1351,7 +1351,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                             .filter(|(out, _)| *out == mic_id)
                             .map(|(_, input)| *input)
                             // Tracked nodes here are devices (monitor
-                            // targets) — foreign capture streams aren't in
+                            // targets) - foreign capture streams aren't in
                             // the mirror.
                             .filter(|input| !s.nodes.contains_key(input))
                             .collect();
@@ -1359,7 +1359,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                     s.mic_streams = None;
                     s.mic_links.clear();
                     if let Some(proxy) = s.mic_source.take() {
-                        // Our own destroy — the heal path should expect this
+                        // Our own destroy - the heal path should expect this
                         // removal rather than treat it as external and race a
                         // second recreate.
                         s.mic_expected_removals += 1;
@@ -1413,7 +1413,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                         s.desired
                             .insert(MIC_NODE.to_string(), (config.output_label.clone(), 2));
                         // Re-point streams that were capturing the old node
-                        // (target.object by name survives the recreation —
+                        // (target.object by name survives the recreation -
                         // the session manager re-attaches them when the new
                         // global appears). Type stays None deliberately:
                         // that's what `pw-metadata <id> target.object <name>`
@@ -1441,7 +1441,7 @@ fn handle_cmd(state: &Rc<RefCell<State>>, registry: &RegistryRc, cmd: Cmd) {
                 }
             } else if config.enabled && source_exists {
                 // Source exists but streams may be missing (earlier failure
-                // or config re-applied at startup) — attach if needed.
+                // or config re-applied at startup) - attach if needed.
                 let missing = state.borrow().mic_streams.is_none();
                 if missing {
                     build_mic_streams(state);
@@ -1649,7 +1649,7 @@ mod tests {
     #[test]
     fn fallback_picks_highest_priority_real_sink() {
         let candidates = [
-            (1u32, "sink_game", 10_000i64), // virtual — never a fallback
+            (1u32, "sink_game", 10_000i64), // virtual - never a fallback
             (2, "alsa_output.hdmi", 500),
             (3, "alsa_output.analog", 900),
             (4, "alsa_output.usb", 700),
@@ -1679,7 +1679,7 @@ mod tests {
     fn fallback_is_none_when_only_virtual_channel_sinks_exist() {
         // Channel sinks are virtual and must never be a fallback target.
         // (sink_mic/sink_stream are sources, excluded by media_class before
-        // reaching here — so they're not exercised at this layer.)
+        // reaching here - so they're not exercised at this layer.)
         let candidates = [(1u32, "sink_game", 0i64), (2, "sink_chat", 0)];
         assert_eq!(pick_fallback_sink(candidates.into_iter()), None);
     }

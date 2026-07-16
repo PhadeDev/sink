@@ -28,7 +28,7 @@ pub fn is_master(name: &str) -> bool {
 pub struct BusDef {
     /// Stable node name, e.g. "sink_stream" or "sink_bus_voice_only".
     pub name: String,
-    /// Display label — also the device description recorders see.
+    /// Display label - also the device description recorders see.
     pub label: String,
     /// Exclude mode (false): channels carried by this mix.
     /// Exclude mode (true): channels kept OUT of this mix.
@@ -38,6 +38,17 @@ pub struct BusDef {
     /// mix carries exactly `channels` (manual selection).
     #[serde(default)]
     pub exclude: bool,
+    /// Playback level recorders hear (0-150%). Persisted so a mix keeps its
+    /// level across UI remounts, profile switches, and restarts.
+    #[serde(default = "default_volume")]
+    pub volume_percent: u8,
+    /// Muted for recorders (they hear silence). Persisted like the volume.
+    #[serde(default)]
+    pub muted: bool,
+}
+
+fn default_volume() -> u8 {
+    100
 }
 
 impl BusDef {
@@ -69,6 +80,8 @@ impl Default for Buses {
                 label: "Master Mix".to_string(),
                 channels: Vec::new(),
                 exclude: false,
+                volume_percent: 100,
+                muted: false,
             }],
         }
     }
@@ -147,6 +160,8 @@ impl Buses {
                 label: "Master Mix".to_string(),
                 channels: Vec::new(),
                 exclude: false,
+                volume_percent: 100,
+                muted: false,
             },
         };
         def.channels = channels.to_vec();
@@ -209,7 +224,7 @@ impl Buses {
             name = format!("{base}_{counter}");
             counter += 1;
         }
-        // New mixes start in auto-include mode carrying everything —
+        // New mixes start in auto-include mode carrying everything -
         // uncheck what you don't want ("everything but music") and future
         // channels keep joining automatically.
         let def = BusDef {
@@ -217,6 +232,8 @@ impl Buses {
             label: label.to_string(),
             channels: Vec::new(),
             exclude: true,
+            volume_percent: 100,
+            muted: false,
         };
         self.buses.push(def.clone());
         Ok(def)
@@ -260,6 +277,26 @@ impl Buses {
             .find(|b| b.name == name)
             .ok_or_else(|| SinkError::UnknownSink(name.to_string()))?;
         def.channels = channels;
+        Ok(())
+    }
+
+    pub fn set_volume(&mut self, name: &str, volume: u8) -> Result<(), SinkError> {
+        let def = self
+            .buses
+            .iter_mut()
+            .find(|b| b.name == name)
+            .ok_or_else(|| SinkError::UnknownSink(name.to_string()))?;
+        def.volume_percent = volume;
+        Ok(())
+    }
+
+    pub fn set_muted(&mut self, name: &str, muted: bool) -> Result<(), SinkError> {
+        let def = self
+            .buses
+            .iter_mut()
+            .find(|b| b.name == name)
+            .ok_or_else(|| SinkError::UnknownSink(name.to_string()))?;
+        def.muted = muted;
         Ok(())
     }
 
@@ -311,7 +348,7 @@ mod tests {
         let mut b = Buses::default();
         assert!(b.remove("sink_stream").is_err());
         assert!(b.set_members("sink_stream", vec!["sink_game".into()]).is_err());
-        // Renaming is allowed — recorders see the label.
+        // Renaming is allowed - recorders see the label.
         b.rename("sink_stream", "Everything").expect("renames");
 
         b.sync_master(&["sink_game".into(), "sink_chat".into()]);
@@ -382,6 +419,26 @@ mod tests {
         // No channels at all: the master mirrors that too.
         b.sync_master(&[]);
         assert!(b.get("sink_stream").expect("master").channels.is_empty());
+    }
+
+    #[test]
+    fn volume_and_mute_persist_and_default() {
+        let mut b = Buses::default();
+        // Fresh mixes start at unity, unmuted.
+        assert_eq!(b.buses[0].volume_percent, 100);
+        assert!(!b.buses[0].muted);
+
+        b.set_volume("sink_stream", 60).expect("sets volume");
+        b.set_muted("sink_stream", true).expect("sets mute");
+        assert_eq!(b.get("sink_stream").expect("master").volume_percent, 60);
+        assert!(b.get("sink_stream").expect("master").muted);
+        assert!(b.set_volume("sink_missing", 50).is_err());
+
+        // Legacy buses.json written before these fields loads at the defaults.
+        let legacy = r#"{"buses":[{"name":"sink_stream","label":"Master Mix","channels":[],"exclude":false}]}"#;
+        let loaded: Buses = serde_json::from_str(legacy).expect("legacy loads");
+        assert_eq!(loaded.buses[0].volume_percent, 100);
+        assert!(!loaded.buses[0].muted);
     }
 
     #[test]

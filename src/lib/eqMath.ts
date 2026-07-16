@@ -1,4 +1,4 @@
-// Frequency-response math for the EQ curve — a hand-synced mirror of the
+// Frequency-response math for the EQ curve - a hand-synced mirror of the
 // RBJ designs in src-tauri/src/audio/pw_native/eq.rs. If a formula changes
 // on either side, change both; the parallel test suites pin the contract.
 
