@@ -59,7 +59,7 @@ export function EqModal({ channel, open, onClose }: EqModalProps) {
     <Modal
       open={open}
       onClose={onClose}
-      title={`${channel.label} — Equalizer`}
+      title={`${channel.label} - Equalizer`}
       className="eqm-modal"
     >
       {backendNative === false && (
@@ -83,9 +83,13 @@ export function EqModal({ channel, open, onClose }: EqModalProps) {
             onApply={apply}
             onError={setError}
           />
-          <button className="select" onClick={reset} title="Back to the flat 5-band layout">
-            <Ms name="restart_alt" style={{ fontSize: 15 }} />
-            <span>Reset</span>
+          <button
+            className="select eqm-iconbtn"
+            onClick={reset}
+            title="Reset to the flat 5-band layout"
+            aria-label="Reset EQ"
+          >
+            <Ms name="restart_alt" style={{ fontSize: 16 }} />
           </button>
         </div>
       </div>
@@ -96,6 +100,10 @@ export function EqModal({ channel, open, onClose }: EqModalProps) {
         onSelect={setSelected}
         onBandChange={patchBand}
       />
+      <p className="eqm-hint">
+        Drag a point to move it · scroll over it to widen or narrow ·
+        double-click to flatten
+      </p>
 
       <DspSlider
         label="Preamp"
@@ -108,18 +116,24 @@ export function EqModal({ channel, open, onClose }: EqModalProps) {
         onChange={(v) => apply({ ...config, preamp_db: v })}
       />
 
-      <div className="eqm-bands">
-        {config.bands.map((band, i) => (
-          <EqBandRow
-            key={i}
-            band={band}
-            color={bandColor(i)}
-            selected={i === selected}
-            onSelect={() => setSelected(i)}
-            onChange={(patch) => patchBand(i, patch)}
-            onRemove={() => removeBand(i)}
-          />
-        ))}
+      <div className="eqm-bandlist">
+        <div className="eqm-bands-viewport">
+          <div className="eqm-bands">
+            {config.bands.map((band, i) => (
+              <EqBandRow
+                key={i}
+                index={i}
+                band={band}
+                color={bandColor(i)}
+                selected={i === selected}
+                canRemove={config.bands.length > 1}
+                onSelect={() => setSelected(i)}
+                onChange={(patch) => patchBand(i, patch)}
+                onRemove={() => removeBand(i)}
+              />
+            ))}
+          </div>
+        </div>
         {config.bands.length < MAX_EQ_BANDS && (
           <button className="eqm-add" onClick={addBand}>
             <Ms name="add" style={{ fontSize: 15 }} />

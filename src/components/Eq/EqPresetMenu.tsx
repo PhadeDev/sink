@@ -32,6 +32,8 @@ export function EqPresetMenu({ sinkName, config, onApply, onError }: EqPresetMen
   const [saveName, setSaveName] = useState("");
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
+  // Name of the user preset awaiting a delete confirmation, if any.
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const refresh = () => {
     invoke<EqPresetEntry[]>("list_eq_presets")
@@ -39,8 +41,10 @@ export function EqPresetMenu({ sinkName, config, onApply, onError }: EqPresetMen
       .catch((e) => onError(String(e)));
   };
 
+  // Fetch on mount (so the button can name the active preset right away) and
+  // again whenever the menu opens (to pick up newly saved user presets).
   useEffect(() => {
-    if (menuOpen) refresh();
+    refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen]);
 
@@ -113,17 +117,86 @@ export function EqPresetMenu({ sinkName, config, onApply, onError }: EqPresetMen
   const deletePreset = async (name: string) => {
     try {
       await invoke("delete_user_eq_preset", { name });
+      setConfirmDelete(null);
       refresh();
     } catch (e) {
       onError(String(e));
     }
   };
 
+  const bundled = presets.filter((p) => p.source === "bundled");
+  const user = presets.filter((p) => p.source === "user");
+
+  // The button names whichever preset the current curve matches exactly; any
+  // manual edit breaks the match and it falls back to the generic label.
+  // Both sides come through the same f32 pipeline, so equality is safe.
+  const sameBands = (a: EqConfig["bands"], b: EqConfig["bands"]) =>
+    a.length === b.length &&
+    a.every(
+      (x, i) =>
+        x.kind === b[i].kind &&
+        x.freq_hz === b[i].freq_hz &&
+        x.gain_db === b[i].gain_db &&
+        x.q === b[i].q,
+    );
+  const activePreset = presets.find(
+    (e) => e.preset.preamp_db === config.preamp_db && sameBands(config.bands, e.preset.bands),
+  );
+
+  const presetRow = (entry: EqPresetEntry) => (
+    <div key={`${entry.source}:${entry.preset.name}`} className="eqm-preset-row">
+      <button
+        className={"menu-item eqm-preset-apply" + (entry === activePreset ? " sel" : "")}
+        title={entry.preset.description ?? undefined}
+        onClick={() => applyPreset(entry)}
+      >
+        <Ms name="graphic_eq" />
+        <span className="eqm-preset-name">{entry.preset.name}</span>
+      </button>
+      {entry.source === "user" &&
+        (confirmDelete === entry.preset.name ? (
+          <span className="eqm-preset-confirm">
+            <button
+              className="eqm-remove danger"
+              title="Delete this preset"
+              aria-label={`Confirm delete ${entry.preset.name}`}
+              onClick={() => void deletePreset(entry.preset.name)}
+            >
+              <Ms name="check" style={{ fontSize: 14 }} />
+            </button>
+            <button
+              className="eqm-remove"
+              title="Keep it"
+              aria-label="Cancel delete"
+              onClick={() => setConfirmDelete(null)}
+            >
+              <Ms name="close" style={{ fontSize: 13 }} />
+            </button>
+          </span>
+        ) : (
+          <button
+            className="eqm-remove"
+            title="Delete preset"
+            aria-label={`Delete preset ${entry.preset.name}`}
+            onClick={() => setConfirmDelete(entry.preset.name)}
+          >
+            <Ms name="close" style={{ fontSize: 13 }} />
+          </button>
+        ))}
+    </div>
+  );
+
   return (
     <div style={{ position: "relative" }}>
-      <button className="select" onClick={() => setMenuOpen((o) => !o)}>
+      <button
+        className="select"
+        onClick={() => setMenuOpen((o) => !o)}
+        title={activePreset ? `Preset: ${activePreset.preset.name}` : undefined}
+      >
         <Ms name="library_music" style={{ fontSize: 15 }} />
-        <span>Presets</span>
+        <span className="eqm-preset-btn-label">
+          {activePreset ? activePreset.preset.name : "Custom"}
+        </span>
         <Ms name="expand_more" />
       </button>
       <Popover
@@ -131,39 +204,33 @@ export function EqPresetMenu({ sinkName, config, onApply, onError }: EqPresetMen
         onClose={() => {
           setMenuOpen(false);
           setImporting(false);
+          setConfirmDelete(null);
         }}
         side="bottom"
         align="end"
         style={{ minWidth: 260 }}
       >
-        {presets.map((entry) => (
-          <div key={`${entry.source}:${entry.preset.name}`} className="eqm-preset-row">
-            <button
-              className="menu-item eqm-preset-apply"
-              title={entry.preset.description ?? undefined}
-              onClick={() => applyPreset(entry)}
-            >
-              <Ms name={entry.source === "bundled" ? "verified" : "person"} />
-              <span>{entry.preset.name}</span>
-            </button>
-            {entry.source === "user" && (
-              <button
-                className="eqm-remove"
-                title="Delete preset"
-                aria-label={`Delete preset ${entry.preset.name}`}
-                onClick={() => void deletePreset(entry.preset.name)}
-              >
-                <Ms name="close" style={{ fontSize: 13 }} />
-              </button>
-            )}
-          </div>
-        ))}
+        {bundled.length > 0 && (
+          <>
+            <div className="eqm-preset-head">Bundled</div>
+            {bundled.map(presetRow)}
+          </>
+        )}
+        {user.length > 0 && (
+          <>
+            <div className="eqm-preset-head">Your presets</div>
+            {user.map(presetRow)}
+          </>
+        )}
 
         <div className="menu-sep" />
+        <div className={"eqm-save-label" + (activePreset ? "" : " custom")}>
+          {activePreset ? "Save a copy as a new preset" : "Custom curve - save it to keep"}
+        </div>
         <div className="eqm-save-row">
           <input
             className="menu-input"
-            placeholder="Save current as…"
+            placeholder="Preset name…"
             value={saveName}
             maxLength={64}
             onChange={(e) => setSaveName(e.target.value)}
@@ -174,6 +241,7 @@ export function EqPresetMenu({ sinkName, config, onApply, onError }: EqPresetMen
           <button
             className="select"
             disabled={!saveName.trim()}
+            title="Save current curve as a preset"
             onClick={() => void saveCurrent()}
           >
             <Ms name="save" style={{ fontSize: 15 }} />
@@ -181,7 +249,26 @@ export function EqPresetMenu({ sinkName, config, onApply, onError }: EqPresetMen
         </div>
 
         <div className="menu-sep" />
-        {importing ? (
+        <div className="eqm-io-row">
+          <button
+            className={"select eqm-io-btn" + (importing ? " on" : "")}
+            aria-expanded={importing}
+            title="Import a preset (paste JSON / AutoEq, or a file)"
+            onClick={() => setImporting((v) => !v)}
+          >
+            <Ms name="content_paste" style={{ fontSize: 15 }} />
+            <span>Import</span>
+          </button>
+          <button
+            className="select eqm-io-btn"
+            title="Export this curve to a JSON file"
+            onClick={() => void exportToFile()}
+          >
+            <Ms name="download" style={{ fontSize: 15 }} />
+            <span>Export</span>
+          </button>
+        </div>
+        {importing && (
           <div className="eqm-import">
             <textarea
               className="eqm-import-text"
@@ -196,23 +283,14 @@ export function EqPresetMenu({ sinkName, config, onApply, onError }: EqPresetMen
                 disabled={!importText.trim()}
                 onClick={() => void importPasted()}
               >
-                Import
+                Apply pasted
               </button>
               <button className="select" onClick={() => void importFromFile()}>
                 From file…
               </button>
             </div>
           </div>
-        ) : (
-          <button className="menu-item eqm-menu-btn" onClick={() => setImporting(true)}>
-            <Ms name="content_paste" />
-            <span>Import (paste / AutoEq / file)</span>
-          </button>
         )}
-        <button className="menu-item eqm-menu-btn" onClick={() => void exportToFile()}>
-          <Ms name="download" />
-          <span>Export to file…</span>
-        </button>
       </Popover>
     </div>
   );
