@@ -1499,6 +1499,25 @@ body,
   outline-offset: 1px;
 }
 
+/* Global hover tooltip (see components/Tooltip.tsx): replaces the native
+   `title` popups so timing and on-screen clamping are ours to control.
+   Positioned imperatively; sits above modals and menus. */
+.app-tooltip {
+  position: fixed;
+  z-index: 200;
+  max-width: 280px;
+  padding: 6px 9px;
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--fg-primary);
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  white-space: normal;
+}
+
 /* DSP tuning sliders (mic processing card): inset under their stage's
  * toggle row with a guide line, so parameters read as controls rather
  * than blending into the stage descriptions. */

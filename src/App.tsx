@@ -7,6 +7,7 @@ import { MicScreen } from "./components/Mic/MicScreen";
 import { OnboardingModal } from "./components/Onboarding/OnboardingModal";
 import { SettingsScreen } from "./components/Settings/SettingsScreen";
 import { Ms } from "./components/Icons";
+import { Tooltip } from "./components/Tooltip";
 import { useAudio } from "./hooks/useAudio";
 import { useMixerStore } from "./store/mixer";
 
@@ -89,6 +90,7 @@ export default function App() {
       </div>
 
       <OnboardingModal />
+      <Tooltip />
     </div>
   );
 }
