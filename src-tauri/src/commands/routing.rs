@@ -4,7 +4,7 @@ use crate::audio::types::is_virtual_sink;
 use crate::persistence::wireplumber;
 use crate::state::AppState;
 
-const MAX_VOLUME: u8 = 150;
+pub(crate) const MAX_VOLUME: u8 = 150;
 
 /// Move an app stream onto a channel. An empty `sink_name` unassigns the
 /// stream (returns it to the system default sink).
@@ -105,7 +105,7 @@ pub fn toggle_channel_mute(
     Ok(())
 }
 
-/// Listen to a channel/mix/mic on the default output (session scoped —
+/// Listen to a channel/mix/mic on the default output (session scoped -
 /// not persisted, cleared on restart).
 #[tauri::command]
 pub fn set_monitor(

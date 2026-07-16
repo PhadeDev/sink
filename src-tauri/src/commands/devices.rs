@@ -150,7 +150,7 @@ pub fn init_virtual_devices(
             .backend
             .create_virtual_sink(&def.name, &prefs.decorate(&def.label))
             .map_err(|e| e.to_string())?;
-        // Known starting point — adopted sinks from a previous run may carry
+        // Known starting point - adopted sinks from a previous run may carry
         // stale volume/mute.
         state
             .backend
@@ -216,6 +216,7 @@ pub fn init_virtual_devices(
         {
             eprintln!("sink: members for mix {} failed: {e}", bus.name);
         }
+        crate::commands::buses::apply_bus_level(state.backend.as_ref(), bus);
     }
 
     // Bring the mic chain up if it was enabled last session.
@@ -225,7 +226,7 @@ pub fn init_virtual_devices(
         if let Err(e) = state.backend.set_mic_config(&applied) {
             eprintln!("sink: mic chain init failed: {e}");
             // Keep the UI honest: no chain is running, so don't show the
-            // mic as enabled. In-memory only — the on-disk config keeps
+            // mic as enabled. In-memory only - the on-disk config keeps
             // enabled=true so the next native-backend session restores it.
             if let Ok(mut mixer) = state.lock_mixer() {
                 mixer.mic.enabled = false;

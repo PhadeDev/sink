@@ -71,7 +71,7 @@ interface MixerStore {
   setProfileTrigger: (name: string, device: string | null) => Promise<void>;
   /** Create a clean-slate profile (saved, not applied). */
   createBlankProfile: (name: string) => Promise<void>;
-  /** A profile was switched outside the UI (tray) — sync everything. */
+  /** A profile was switched outside the UI (tray) - sync everything. */
   onProfileChanged: (name: string) => Promise<void>;
   /** App history (live + gone + ignored). */
   seenApps: SeenApp[];
@@ -101,6 +101,10 @@ interface MixerStore {
   setBusMembers: (name: string, channels: string[]) => Promise<void>;
   /** Manual vs auto-include mode (carried set preserved). */
   setBusExclude: (name: string, exclude: boolean) => Promise<void>;
+  /** A mix's playback level for recorders (0-150%); persisted. */
+  setBusVolume: (name: string, volume: number) => Promise<void>;
+  /** Mute a mix for recorders; persisted. */
+  setBusMute: (name: string, muted: boolean) => Promise<void>;
   /** Session-scoped "listen on default output" toggles per node. */
   monitors: Record<string, boolean>;
   toggleMonitor: (name: string) => Promise<void>;
@@ -108,6 +112,8 @@ interface MixerStore {
   activeProfile: string | null;
   /** Fatal error surfaced to the UI (e.g. pactl missing, PipeWire down). */
   error: string | null;
+  /** Dismiss the error banner. */
+  clearError: () => void;
   initialized: boolean;
   /** True on the native PipeWire backend; false on the pactl fallback
    * (mixes/mic/monitoring unavailable). Null until known. */
@@ -118,7 +124,7 @@ interface MixerStore {
   onboardingReplay: boolean;
   /** Close the tutorial; blank = collapse to a single starter channel. */
   finishOnboarding: (blank: boolean) => Promise<void>;
-  /** Reopen the tutorial (view-only — no starting-point choice). */
+  /** Reopen the tutorial (view-only - no starting-point choice). */
   replayOnboarding: () => void;
   /** Balance slider channel picks (null = auto Game/Chat or first two). */
   balanceA: string | null;
@@ -175,6 +181,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
   profiles: [],
   activeProfile: null,
   error: null,
+  clearError: () => set({ error: null }),
   initialized: false,
   backendNative: null,
   showOnboarding: false,
@@ -265,7 +272,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
           set({ activeProfile: "Default" });
         }
       } catch {
-        /* older backend without the command — banner-worthy errors surface elsewhere */
+        /* older backend without the command - banner-worthy errors surface elsewhere */
       }
     } catch (e) {
       set({ error: String(e) });
@@ -486,7 +493,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     try {
       await invoke("create_blank_profile", { name });
       await get().fetchProfiles();
-      // Switch to the fresh profile right away — creating a blank slate
+      // Switch to the fresh profile right away - creating a blank slate
       // and not seeing anything change reads as a bug.
       await get().loadProfile(name);
     } catch (e) {
@@ -633,7 +640,7 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     }));
     try {
       await invoke("set_bus_members", { name, channels });
-      // The backend converts against its own channel set — sync up so the
+      // The backend converts against its own channel set - sync up so the
       // stored complement can't drift if channels changed mid-flight.
       await get().fetchBuses();
     } catch (e) {
@@ -660,6 +667,28 @@ export const useMixerStore = create<MixerStore>((set, get) => ({
     }));
     try {
       await invoke("set_bus_exclude", { name, exclude });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().fetchBuses();
+    }
+  },
+
+  setBusVolume: async (name, volume) => {
+    set((s) => ({
+      buses: s.buses.map((b) => (b.name === name ? { ...b, volume_percent: volume } : b)),
+    }));
+    debouncedInvoke(`busvol:${name}`, "set_bus_volume", { name, volume }, (e) => {
+      set({ error: String(e) });
+      void get().fetchBuses();
+    });
+  },
+
+  setBusMute: async (name, muted) => {
+    set((s) => ({
+      buses: s.buses.map((b) => (b.name === name ? { ...b, muted } : b)),
+    }));
+    try {
+      await invoke("set_bus_mute", { name, muted });
     } catch (e) {
       set({ error: String(e) });
       await get().fetchBuses();
