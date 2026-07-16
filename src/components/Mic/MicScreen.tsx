@@ -148,7 +148,7 @@ export function MicScreen() {
                 <button
                   className={"sbtn" + (listening ? " on-mon" : "")}
                   style={{ width: 34, flex: "0 0 34px" }}
-                  title="Listen to yourself — hear the processed mic to tune the chain (wear headphones)"
+                  title="Listen to yourself - hear the processed mic to tune the chain (wear headphones)"
                   onClick={() => void toggleMonitor(MIC_LEVEL_KEY)}
                 >
                   <Ms name="headphones" style={{ fontSize: 18 }} />
@@ -223,7 +223,7 @@ export function MicScreen() {
               <ToggleRow
                 icon="vertical_align_center"
                 title="Limiter"
-                sub="Hard ceiling — nothing clips downstream"
+                sub="Hard ceiling - nothing clips downstream"
                 on={micConfig.limiter_enabled}
                 onToggle={() =>
                   void setMicConfig({ limiter_enabled: !micConfig.limiter_enabled })
@@ -254,7 +254,7 @@ export function MicScreen() {
                 >
                   NoiseTorch
                 </a>{" "}
-                in front of Sink removes background noise before this chain —
+                in front of Sink removes background noise before this chain -
                 pick its virtual mic as the Input above and the gate gets a
                 much cleaner signal to work with.
               </span>

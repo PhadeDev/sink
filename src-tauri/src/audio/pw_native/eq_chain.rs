@@ -45,7 +45,7 @@ pub struct EqChainHandle {
 }
 
 impl EqChainHandle {
-    /// Node id of the playback stream — the loop links its output ports to
+    /// Node id of the playback stream - the loop links its output ports to
     /// the channel's targets. Only valid once the server has created the
     /// stream's node (callers filter u32::MAX, like `mic_playback_node`).
     pub fn playback_node_id(&self) -> u32 {
@@ -112,7 +112,7 @@ impl EqChainHandle {
             })
             .param_changed(|_, ctx, id, param| {
                 // Coefficients are rate-relative: redesign on renegotiation.
-                // Filter state resets — same tradeoff the mic chain accepts.
+                // Filter state resets - same tradeoff the mic chain accepts.
                 if id != spa::param::ParamType::Format.as_raw() {
                     return;
                 }
@@ -161,7 +161,7 @@ impl EqChainHandle {
 
         // ---- playback: ring -> device/buses ----
         // node.autoconnect=false keeps WirePlumber's hands off this stream
-        // (it routes playback streams to the default sink — the link police
+        // (it routes playback streams to the default sink - the link police
         // in thread.rs destroys anything that slips through anyway); the
         // loop links it to the channel's resolved targets itself.
         let playback_name = format!("{EQ_PLAYBACK_PREFIX}{sink_name}");

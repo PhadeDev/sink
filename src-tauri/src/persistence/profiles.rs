@@ -22,7 +22,7 @@ pub struct Profile {
     #[serde(default)]
     pub eq: crate::persistence::eq::ChannelEq,
     /// Phase 5: output device (node.name) whose appearance auto-loads this
-    /// profile — Sonar-style hardware profile switching.
+    /// profile - Sonar-style hardware profile switching.
     #[serde(default)]
     pub trigger_device: Option<String>,
     /// User-defined mixes (record buses) with their member channels.

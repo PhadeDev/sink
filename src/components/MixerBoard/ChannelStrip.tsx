@@ -196,7 +196,7 @@ export function ChannelStrip({
           className={"sbtn" + (monitoring ? " on-mon" : "")}
           onClick={() => void toggleMonitor(channel.name)}
           aria-pressed={monitoring}
-          title="Monitor — listen to this channel on the default output"
+          title="Monitor - listen to this channel on the default output"
         >
           <Ms name="headphones" style={{ fontSize: 16 }} />
         </button>

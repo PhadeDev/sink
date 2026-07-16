@@ -13,7 +13,7 @@ pub mod seen;
 pub mod profiles;
 pub mod wireplumber;
 
-/// Create Sink's config directory (and parents) with owner-only access —
+/// Create Sink's config directory (and parents) with owner-only access -
 /// routing rules and app history are nobody else's business. Used by every
 /// save path that writes under `$XDG_CONFIG_HOME/sink`.
 pub fn ensure_private_dir(path: &std::path::Path) -> std::io::Result<()> {
@@ -28,7 +28,7 @@ pub fn ensure_private_dir(path: &std::path::Path) -> std::io::Result<()> {
 
 /// Write `contents` to `path` atomically: write a sibling temp file, fsync it,
 /// then rename it over the target. A crash or power loss mid-write then leaves
-/// either the old file or the complete new one — never a truncated file that
+/// either the old file or the complete new one - never a truncated file that
 /// load paths silently discard (resetting the user's config). The parent
 /// directory is created if missing; callers needing 0700 call
 /// [`ensure_private_dir`] first, which this preserves.
@@ -54,7 +54,7 @@ pub fn write_atomic(path: &std::path::Path, contents: impl AsRef<[u8]>) -> std::
     result
 }
 
-/// Factory reset: delete everything Sink ever saved — the whole config
+/// Factory reset: delete everything Sink ever saved - the whole config
 /// directory (channels, mixes, profiles, assignments, history, prefs)
 /// and the WirePlumber routing rules.
 pub fn wipe_all() -> Result<(), crate::error::SinkError> {

@@ -104,7 +104,7 @@ mod tests {
         let store = LevelStore::new();
         let slot = store.slot_for("sink_game").expect("slot");
         store.raise(slot, 0, 0.5);
-        store.raise(slot, 0, 0.3); // lower — ignored
+        store.raise(slot, 0, 0.3); // lower - ignored
         assert!((store.drain(slot, 0) - 0.5).abs() < f32::EPSILON);
         assert_eq!(store.drain(slot, 0), 0.0); // drained
     }

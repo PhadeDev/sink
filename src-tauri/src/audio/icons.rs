@@ -1,4 +1,4 @@
-//! Desktop-entry based icon and name resolution — the same mechanism app
+//! Desktop-entry based icon and name resolution - the same mechanism app
 //! launchers use. Parses .desktop files once (Name/Icon/Exec/
 //! StartupWMClass), matches streams against them, and resolves icon names
 //! to actual files across the freedesktop icon dirs (user, system,
@@ -50,7 +50,7 @@ fn desktop_dirs() -> Vec<PathBuf> {
 }
 
 /// Every installed icon theme directory (hicolor first, then whatever
-/// themes the distro/user installed — Papirus, Adwaita, breeze, …).
+/// themes the distro/user installed - Papirus, Adwaita, breeze, …).
 /// Many apps only ship icons inside a theme, so hicolor alone misses them.
 fn icon_theme_dirs() -> &'static [PathBuf] {
     // The theme set is stable for the process lifetime; scanning the icon
@@ -68,7 +68,7 @@ fn icon_theme_dirs() -> &'static [PathBuf] {
 
         let mut themes = Vec::new();
         for root in roots {
-            // hicolor is the freedesktop fallback theme — search it first.
+            // hicolor is the freedesktop fallback theme - search it first.
             let hicolor = root.join("hicolor");
             if hicolor.is_dir() {
                 themes.push(hicolor);
@@ -135,7 +135,7 @@ fn parse_desktop_file(path: &Path) -> Option<DesktopEntry> {
 }
 
 /// Desktop-id candidates for a live process, most reliable first. Linux
-/// binaries don't embed icons — the icon belongs to the app's .desktop
+/// binaries don't embed icons - the icon belongs to the app's .desktop
 /// entry, so identifying a stream's icon means mapping PID → desktop id
 /// through the fingerprints the system leaves on the process.
 fn desktop_id_candidates(pid: u32) -> Vec<String> {
@@ -186,7 +186,7 @@ fn desktop_id_candidates(pid: u32) -> Vec<String> {
     }
 
     // 3. GIO stamps processes launched from a menu/dock with the exact
-    //    .desktop file (inherited by children — which is what we want for
+    //    .desktop file (inherited by children - which is what we want for
     //    audio helper processes).
     if let Ok(environ) = fs::read(format!("/proc/{pid}/environ")) {
         for var in environ.split(|b| *b == 0) {
@@ -202,7 +202,7 @@ fn desktop_id_candidates(pid: u32) -> Vec<String> {
     out
 }
 
-/// The real executable basename — resolves wrapper scripts and symlinks
+/// The real executable basename - resolves wrapper scripts and symlinks
 /// (an "electron" stream whose exe is /opt/Slack/slack, say).
 fn exe_basename(pid: u32) -> Option<String> {
     fs::read_link(format!("/proc/{pid}/exe"))
@@ -281,7 +281,7 @@ pub fn resolve(
         return Resolved::default();
     };
 
-    // PID presence is part of the key (not the PID itself — it changes per
+    // PID presence is part of the key (not the PID itself - it changes per
     // run): a name-only resolution from history must not shadow the more
     // accurate /proc-based one for a live stream, or vice versa.
     let key = format!("{app_name}\0{binary:?}\0{icon_hint:?}\0{}", pid.is_some());

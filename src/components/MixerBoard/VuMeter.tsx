@@ -19,7 +19,7 @@ const CLIP_AT = heightForDb(-0.2);
  * Live level meter, calibrated in dBFS. Targets arrive at 10 Hz from the
  * backend's `levels` events; an rAF loop smooths toward them (fast attack,
  * slow release) outside React state. Green below −6 dB, amber to −3 dB,
- * red above — and a clip light that latches for 1.5 s when the signal
+ * red above - and a clip light that latches for 1.5 s when the signal
  * touches 0 dBFS. The readout shows the held peak in dBFS.
  * Under the pactl fallback no events arrive and the meter rests at zero.
  */
@@ -66,7 +66,7 @@ export function VuMeter({ target }: VuMeterProps) {
   }, []);
 
   return (
-    <div className="vu-col" title="Peak level in dBFS — tick at −6, red above −3, light latches on clipping">
+    <div className="vu-col" title="Peak level in dBFS - tick at −6, red above −3, light latches on clipping">
       <div className="vu-clip" ref={clipRef} />
       <div className="meter">
         <div className="meter-fill" ref={fillRef} />

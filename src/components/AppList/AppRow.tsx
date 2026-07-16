@@ -74,7 +74,7 @@ export function AppRow({ stream }: AppRowProps) {
             </button>
             <button
               className="rename-btn"
-              title="Ignore — hide this app from Sink"
+              title="Ignore - hide this app from Sink"
               aria-label={`Ignore ${displayName}`}
               onClick={() => void setAppIgnored(stream, true)}
             >

@@ -80,7 +80,7 @@ impl SeenApps {
     }
 
     /// Record a sighting. Returns true when the registry changed in a way
-    /// worth persisting (new identity, or display/icon changed) — pure
+    /// worth persisting (new identity, or display/icon changed) - pure
     /// last_seen bumps return false so the poll doesn't hit the disk.
     pub fn upsert(
         &mut self,
@@ -140,10 +140,10 @@ mod tests {
     fn upsert_reports_structural_changes_only() {
         let mut seen = SeenApps::default();
         assert!(seen.upsert("application.name", "Firefox", "Firefox", Some("firefox"), 100));
-        // Pure last_seen bump — not worth persisting.
+        // Pure last_seen bump - not worth persisting.
         assert!(!seen.upsert("application.name", "Firefox", "Firefox", Some("firefox"), 200));
         assert_eq!(seen.get("application.name", "Firefox").expect("entry").last_seen, 200);
-        // Display change — persist.
+        // Display change - persist.
         assert!(seen.upsert("application.name", "Firefox", "Firefox ESR", Some("firefox"), 300));
     }
 

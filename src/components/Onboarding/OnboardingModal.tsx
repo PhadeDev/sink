@@ -54,13 +54,13 @@ const STEPS: Step[] = [
   {
     icon: "graphic_eq",
     title: "Your sound, on a board",
-    body: "Every app's audio lands on a channel you control. Send each channel to your ears — and tap any group as a recording.",
+    body: "Every app's audio lands on a channel you control. Send each channel to your ears - and tap any group as a recording.",
     diagram: true,
   },
   {
     icon: "grid_view",
     title: "Sort your apps",
-    body: "New apps appear on their own. Drop each onto a channel — game, chat, music — and Sink keeps it there next time.",
+    body: "New apps appear on their own. Drop each onto a channel - game, chat, music - and Sink keeps it there next time.",
   },
   {
     icon: "mic",
@@ -93,7 +93,7 @@ export function OnboardingModal() {
           <>
             <div className="modal-title">That's the tour</div>
             <p className="modal-text">
-              Channels, apps and the mic are all live — your setup is
+              Channels, apps and the mic are all live - your setup is
               untouched.
             </p>
             <div className="ob-foot">
@@ -117,7 +117,7 @@ export function OnboardingModal() {
           <>
             <div className="modal-title">How do you want to start?</div>
             <p className="modal-text">
-              Either way you can add, rename or delete channels whenever —
+              Either way you can add, rename or delete channels whenever -
               this just lays out your first board.
             </p>
             <div className="ob-choices">
@@ -125,14 +125,14 @@ export function OnboardingModal() {
                 <Ms name="dashboard" />
                 <div className="ob-choice-title">Set up a board for me</div>
                 <div className="ob-choice-sub">
-                  Game, Chat, Music and System — ready to drop apps onto
+                  Game, Chat, Music and System - ready to drop apps onto
                 </div>
               </button>
               <button className="ob-choice" onClick={() => void finishOnboarding(true)}>
                 <Ms name="check_box_outline_blank" />
                 <div className="ob-choice-title">I'll build my own</div>
                 <div className="ob-choice-sub">
-                  One Main channel — add the rest as you go
+                  One Main channel - add the rest as you go
                 </div>
               </button>
             </div>

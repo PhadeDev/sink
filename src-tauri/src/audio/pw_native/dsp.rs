@@ -37,7 +37,7 @@ impl Default for DspSettings {
     }
 }
 
-// Fixed time constants (voice-chain guidance — OBS-style starting
+// Fixed time constants (voice-chain guidance - OBS-style starting
 // points). Thresholds/ratio/ceiling are user-tunable via DspSettings.
 const GATE_ATTACK_MS: f32 = 5.0;
 const GATE_RELEASE_MS: f32 = 150.0;

@@ -69,7 +69,7 @@ pub fn add_channel(
     Ok(())
 }
 
-/// Reorder the channel strips (cosmetic — no audio plumbing changes).
+/// Reorder the channel strips (cosmetic - no audio plumbing changes).
 #[tauri::command]
 pub fn reorder_channels(state: State<'_, AppState>, order: Vec<String>) -> Result<(), String> {
     let defs = {

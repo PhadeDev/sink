@@ -103,8 +103,8 @@ impl Channels {
     }
 
     /// Parse and sanitize the channel set from JSON. Entries that break the
-    /// invariants `add()` guarantees — a reserved name, a missing `sink_`
-    /// prefix, or a duplicate — are dropped: a hand-edited or foreign-tool
+    /// invariants `add()` guarantees - a reserved name, a missing `sink_`
+    /// prefix, or a duplicate - are dropped: a hand-edited or foreign-tool
     /// file would otherwise collide with the mic/stream service nodes, or make
     /// `is_virtual_sink` reject a channel and abort `init_virtual_devices`.
     /// The set is capped at `MAX_CHANNELS` so it can't exhaust the level-meter
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn parse_keeps_valid_and_fills_serde_defaults() {
         // Old-shape entries (pre-Phase-4: no icon / stream_mix) must still
-        // load, with the serde defaults applied — an upgrade keeps user data.
+        // load, with the serde defaults applied - an upgrade keeps user data.
         let raw = r#"{"channels":[
             {"name":"sink_game","label":"Game"},
             {"name":"sink_music","label":"Music","icon":"music_note","stream_mix":false}

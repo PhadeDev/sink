@@ -115,7 +115,7 @@ pub fn set_onboarded(state: State<'_, AppState>) -> Result<(), String> {
 /// autostart, and relaunch as if freshly installed.
 #[tauri::command]
 pub fn reset_app(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    // Best-effort teardown — the relaunch recreates everything anyway.
+    // Best-effort teardown - the relaunch recreates everything anyway.
     for err in state.teardown_virtual_sinks() {
         eprintln!("sink: reset teardown: {err}");
     }

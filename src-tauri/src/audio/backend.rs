@@ -5,7 +5,7 @@ use crate::error::SinkError;
 ///
 /// `PipeWireBackend` (native, pipewire-rs) is the default; `PactlBackend`
 /// (pactl subprocess calls) is the automatic fallback. Commands must only
-/// ever talk to this trait — never to a concrete backend.
+/// ever talk to this trait - never to a concrete backend.
 pub trait AudioBackend: Send + Sync {
     /// `label` is the human-readable device description shown by system
     /// mixers (channels are user-defined since the dynamic-channels work).
@@ -20,7 +20,7 @@ pub trait AudioBackend: Send + Sync {
     fn move_stream_to_sink(&self, stream_index: u32, sink_name: &str) -> Result<(), SinkError>;
     /// Set the volume of a single app stream (sink input).
     /// Not in the original trait sketch, but required by the `set_app_volume`
-    /// command — commands are forbidden from calling pactl directly.
+    /// command - commands are forbidden from calling pactl directly.
     fn set_app_volume(&self, stream_index: u32, volume_percent: u8) -> Result<(), SinkError>;
 
     /// Route a channel's audio to a physical output device (Phase 4).

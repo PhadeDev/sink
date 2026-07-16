@@ -5,7 +5,7 @@ import { Popover } from "../Popover";
 
 /**
  * Profile picker. Profiles are live-bound: every mixer change autosaves
- * into the active profile, so rows just switch — there is no Save button.
+ * into the active profile, so rows just switch - there is no Save button.
  */
 export function ProfileMenu() {
   const [open, setOpen] = useState(false);

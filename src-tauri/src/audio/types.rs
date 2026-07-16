@@ -8,7 +8,7 @@ pub fn is_virtual_sink(sink_name: &str) -> bool {
         && !crate::persistence::channels::RESERVED_SINK_NAMES.contains(&sink_name)
 }
 
-/// Property values that are useless as names — media frameworks announcing
+/// Property values that are useless as names - media frameworks announcing
 /// themselves, or placeholder stream titles.
 const GENERIC_NAMES: [&str; 13] = [
     "WEBRTC VoiceEngine",
@@ -26,7 +26,7 @@ const GENERIC_NAMES: [&str; 13] = [
     "Audio Source",
 ];
 
-/// Runtime/wrapper names that hide the real app — e.g. Spotify is a
+/// Runtime/wrapper names that hide the real app - e.g. Spotify is a
 /// Chromium shell, so application.name says "Chromium" while the process
 /// binary says "spotify". A wrapper beats a generic, but a real name
 /// (usually the binary) beats both.
@@ -90,7 +90,7 @@ pub fn resolve_identity(get: impl Fn(&str) -> Option<String>) -> (String, String
                 continue;
             }
             let quality = name_quality(&value);
-            // (map_or keeps MSRV 1.77 — Option::is_none_or is 1.82+.)
+            // (map_or keeps MSRV 1.77 - Option::is_none_or is 1.82+.)
             if best.as_ref().map_or(true, |(q, _, _)| quality > *q) {
                 let stop = quality == 2;
                 best = Some((quality, key.to_string(), value));
@@ -202,7 +202,7 @@ mod identity_tests {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppStream {
     pub index: u32,
-    /// Display name (possibly prettified — not for matching).
+    /// Display name (possibly prettified - not for matching).
     pub app_name: String,
     /// PipeWire property the identity was read from (e.g. "application.name").
     pub match_prop: String,
@@ -215,7 +215,7 @@ pub struct AppStream {
     /// Resolved absolute icon file path (desktop-entry based), ready for
     /// the asset protocol. Filled in by the command layer.
     pub icon_path: Option<String>,
-    /// Producing process id — unlocks /proc-based desktop-entry lookup
+    /// Producing process id - unlocks /proc-based desktop-entry lookup
     /// (cgroup scope, flatpak info, exe path) for icon resolution.
     #[serde(default)]
     pub pid: Option<u32>,
@@ -224,7 +224,7 @@ pub struct AppStream {
     pub volume_percent: u8,
     pub muted: bool,
     /// True while the stream is actively producing audio (node running /
-    /// not corked) — drives the activity indicator in the app list.
+    /// not corked) - drives the activity indicator in the app list.
     pub active: bool,
 }
 
@@ -421,7 +421,7 @@ pub struct EqBand {
     /// Ignored by LowPass/HighPass (their shape has no gain parameter).
     #[serde(default)]
     pub gain_db: f32,
-    /// Peaking/LowPass/HighPass: filter Q. Shelves: RBJ shelf slope S —
+    /// Peaking/LowPass/HighPass: filter Q. Shelves: RBJ shelf slope S -
     /// one field, two meanings, so presets stay a flat 4-field record.
     #[serde(default = "default_band_q")]
     pub q: f32,

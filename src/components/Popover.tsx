@@ -86,7 +86,7 @@ export function Popover({ open, onClose, children, side = "bottom", align = "sta
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       );
       if (focusables.length === 0) {
-        // Nothing tabbable (item rows are click-driven) — keep focus put.
+        // Nothing tabbable (item rows are click-driven) - keep focus put.
         e.preventDefault();
         return;
       }

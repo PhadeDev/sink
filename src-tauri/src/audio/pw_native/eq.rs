@@ -3,7 +3,7 @@
 //!
 //! Pure Rust, no external DSP crates (same stance as the mic chain in
 //! `dsp.rs`). The frequency-response math is hand-mirrored in
-//! `src/lib/eqMath.ts` for the UI curve — keep both in sync.
+//! `src/lib/eqMath.ts` for the UI curve - keep both in sync.
 //!
 //! Threading model: the command thread writes band parameters into
 //! `EqParams` (plain atomics) and bumps a generation counter with Release
@@ -39,7 +39,7 @@ impl BiquadCoeffs {
     }
 
     /// RBJ Audio EQ Cookbook design. For shelves, `q` is the shelf slope S
-    /// (not a resonance Q) — the schema shares one field for both, see
+    /// (not a resonance Q) - the schema shares one field for both, see
     /// `EqBand::q`. LowPass/HighPass ignore `gain_db`.
     pub fn design(kind: EqBandKind, freq_hz: f32, gain_db: f32, q: f32, sample_rate: f32) -> Self {
         // Guard the math: freq must sit below Nyquist and q must be
@@ -211,7 +211,7 @@ impl AtomicBand {
 ///
 /// Single writer (the loop thread handling commands), single reader (the RT
 /// callback). Field writes are Relaxed; the trailing Release bump of
-/// `generation` publishes them all to the reader's Acquire load — no locks,
+/// `generation` publishes them all to the reader's Acquire load - no locks,
 /// no retries, and torn *intermediate* states are impossible because the
 /// reader only redesigns after seeing a new generation.
 pub struct EqParams {
@@ -263,7 +263,7 @@ pub struct EqEngine {
     preamp_linear: f32,
     coeffs: [BiquadCoeffs; MAX_EQ_BANDS],
     count: usize,
-    /// Per band, per stereo channel. A rate change resets filter memory —
+    /// Per band, per stereo channel. A rate change resets filter memory -
     /// accepted, same as the mic chain rebuilding DspChain on rate change.
     state: [[BiquadState; 2]; MAX_EQ_BANDS],
 }
@@ -332,7 +332,7 @@ impl EqEngine {
 mod tests {
     use super::*;
 
-    /// Analytic magnitude response |H(e^jw)| in dB — exact, no time-domain
+    /// Analytic magnitude response |H(e^jw)| in dB - exact, no time-domain
     /// sampling artifacts. This is the same formula the UI curve uses
     /// (src/lib/eqMath.ts), so these tests also pin the shared math.
     fn measured_gain_db(c: &BiquadCoeffs, freq: f32, sample_rate: f32) -> f32 {

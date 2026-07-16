@@ -8,7 +8,7 @@ use crate::audio::types::EqConfig;
 use crate::error::SinkError;
 
 /// Per-channel parametric EQ configs, stored as JSON at
-/// `$XDG_CONFIG_HOME/sink/eq.json`. A missing entry means "never touched" —
+/// `$XDG_CONFIG_HOME/sink/eq.json`. A missing entry means "never touched" -
 /// the default (disabled, flat) config.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ChannelEq {

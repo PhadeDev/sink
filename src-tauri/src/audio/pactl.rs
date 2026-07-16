@@ -208,7 +208,7 @@ impl AudioBackend for PactlBackend {
                 Self::run(&["unload-module", &idx.to_string()])?;
                 Ok(())
             }
-            // Sink does not exist — nothing to destroy. Treat as success so
+            // Sink does not exist - nothing to destroy. Treat as success so
             // teardown is idempotent.
             None => Ok(()),
         }
@@ -387,11 +387,11 @@ impl AudioBackend for PactlBackend {
         sink_name: &str,
         output_name: Option<&str>,
     ) -> Result<(), SinkError> {
-        // Replace any existing loopback for this channel — by asking the
+        // Replace any existing loopback for this channel - by asking the
         // server, not just our own table. A previous run that died without
         // teardown leaves its modules loaded, and stacking a fresh set on
         // top plays the channel once per leftover. (This assumes a single
-        // Sink instance — sink names are deterministic, so two live
+        // Sink instance - sink names are deterministic, so two live
         // instances would already be fighting over the nodes themselves.)
         {
             let mut loopbacks = self
