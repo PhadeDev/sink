@@ -269,7 +269,7 @@ export function SettingsScreen() {
             </div>
             <div className="rmain">
               <div className="rtitle">Sink {version}</div>
-              <div className="rsub">GPL-3.0 · config in ~/.config/sink</div>
+              <div className="rsub">GPL-3.0 · config in ~/.config/phade-sink</div>
             </div>
           </div>
           <div className="row">

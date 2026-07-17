@@ -9,13 +9,22 @@ pub mod eq_presets;
 pub mod mic;
 pub mod outputs;
 pub mod prefs;
-pub mod seen;
 pub mod profiles;
+pub mod seen;
 pub mod wireplumber;
+
+const APP_CONFIG_DIR: &str = "phade-sink";
+
+pub fn app_config_dir() -> Result<std::path::PathBuf, crate::error::SinkError> {
+    let dir = dirs::config_dir().ok_or_else(|| {
+        crate::error::SinkError::Config("cannot resolve the user config directory".into())
+    })?;
+    Ok(dir.join(APP_CONFIG_DIR))
+}
 
 /// Create Sink's config directory (and parents) with owner-only access -
 /// routing rules and app history are nobody else's business. Used by every
-/// save path that writes under `$XDG_CONFIG_HOME/sink`.
+/// save path that writes under this app's config directory.
 pub fn ensure_private_dir(path: &std::path::Path) -> std::io::Result<()> {
     std::fs::create_dir_all(path)?;
     #[cfg(unix)]
@@ -58,11 +67,9 @@ pub fn write_atomic(path: &std::path::Path, contents: impl AsRef<[u8]>) -> std::
 /// directory (channels, mixes, profiles, assignments, history, prefs)
 /// and the WirePlumber routing rules.
 pub fn wipe_all() -> Result<(), crate::error::SinkError> {
-    if let Some(dir) = dirs::config_dir() {
-        let sink_dir = dir.join("sink");
-        if sink_dir.exists() {
-            std::fs::remove_dir_all(&sink_dir)?;
-        }
+    let sink_dir = app_config_dir()?;
+    if sink_dir.exists() {
+        std::fs::remove_dir_all(&sink_dir)?;
     }
     if let Ok(conf) = wireplumber::conf_path() {
         if conf.exists() {
@@ -93,11 +100,17 @@ mod tests {
 
         // A shorter follow-up must fully replace, not overlay, the old bytes.
         write_atomic(&path, b"second, longer contents").expect("overwrite");
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "second, longer contents");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "second, longer contents"
+        );
 
         let mut tmp = path.as_os_str().to_owned();
         tmp.push(".tmp");
-        assert!(!std::path::Path::new(&tmp).exists(), "temp file must not linger");
+        assert!(
+            !std::path::Path::new(&tmp).exists(),
+            "temp file must not linger"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

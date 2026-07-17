@@ -1,5 +1,5 @@
 //! The user's local EQ preset library: named JSON files (the same schema
-//! as the bundled presets) under `$XDG_CONFIG_HOME/sink/eq_presets/`,
+//! as the bundled presets) under the app config directory,
 //! modeled on the profiles store - including its name sanitization, so a
 //! preset name can never traverse out of the directory.
 
@@ -11,9 +11,7 @@ use crate::error::SinkError;
 use crate::persistence::profiles::sanitize_name;
 
 fn presets_dir() -> Result<PathBuf, SinkError> {
-    let dir = dirs::config_dir()
-        .ok_or_else(|| SinkError::Config("cannot resolve the user config directory".into()))?;
-    Ok(dir.join("sink").join("eq_presets"))
+    Ok(crate::persistence::app_config_dir()?.join("eq_presets"))
 }
 
 /// All user presets, sorted by name. Unreadable files are skipped (one

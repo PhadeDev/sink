@@ -18,7 +18,7 @@ pub enum DeviceLabelStyle {
     Prefix,
 }
 
-/// App preferences, stored at `$XDG_CONFIG_HOME/sink/prefs.json`.
+/// App preferences, stored in the app config directory.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Prefs {
     #[serde(default)]
@@ -60,9 +60,7 @@ impl Default for Prefs {
 
 impl Prefs {
     pub fn config_path() -> Result<PathBuf, SinkError> {
-        let dir = dirs::config_dir()
-            .ok_or_else(|| SinkError::Config("cannot resolve the user config directory".into()))?;
-        Ok(dir.join("sink").join("prefs.json"))
+        Ok(crate::persistence::app_config_dir()?.join("prefs.json"))
     }
 
     pub fn load() -> Self {

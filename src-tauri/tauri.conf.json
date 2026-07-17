@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "sink",
+  "productName": "Phade Sink",
   "version": "0.1.0",
   "identifier": "us.echo.Sink",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "sink",
+        "title": "Phade Sink",
         "width": 1280,
         "height": 800,
         "minWidth": 960,

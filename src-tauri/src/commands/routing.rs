@@ -10,7 +10,7 @@ pub(crate) const MAX_VOLUME: u8 = 150;
 /// stream (returns it to the system default sink).
 ///
 /// The choice is also recorded as a persistent assignment (Phase 2): saved
-/// to `$XDG_CONFIG_HOME/sink/assignments.json`, mirrored to a WirePlumber
+/// to the app config directory, mirrored to a WirePlumber
 /// conf fragment, and re-applied by the stream poll when the app restarts.
 #[tauri::command]
 pub fn route_app_to_channel(
@@ -29,7 +29,10 @@ pub fn route_app_to_channel(
     // Resolve the stream's identity to record the assignment. The stream is
     // already moved at this point, so persistence failures are reported but
     // the live routing stands.
-    let streams = state.backend.list_app_streams().map_err(|e| e.to_string())?;
+    let streams = state
+        .backend
+        .list_app_streams()
+        .map_err(|e| e.to_string())?;
     let Some(stream) = streams.iter().find(|s| s.index == stream_index) else {
         return Ok(()); // stream vanished between move and lookup
     };
@@ -118,7 +121,11 @@ pub fn set_monitor(
     {
         let mixer = state.lock_mixer()?;
         let known = sink_name == "sink_mic"
-            || mixer.channel_defs.channels.iter().any(|c| c.name == sink_name)
+            || mixer
+                .channel_defs
+                .channels
+                .iter()
+                .any(|c| c.name == sink_name)
             || mixer.buses.buses.iter().any(|b| b.name == sink_name);
         if !known {
             return Err(format!("unknown monitor target: {sink_name}"));

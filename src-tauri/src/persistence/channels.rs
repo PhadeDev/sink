@@ -29,8 +29,8 @@ fn default_true() -> bool {
     true
 }
 
-/// The user's channel set, stored as JSON at
-/// `$XDG_CONFIG_HOME/sink/channels.json`. Defaults to the classic four.
+/// The user's channel set, stored in the app config directory. Defaults to
+/// the classic four.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Channels {
     pub channels: Vec<ChannelDef>,
@@ -47,7 +47,7 @@ impl Default for Channels {
         Self {
             channels: vec![
                 def("sink_game", "Game", "sports_esports"),
-                def("sink_chat", "Chat", "forum"),
+                def("sink_chat", "Voice", "forum"),
                 def("sink_music", "Music", "music_note"),
                 def("sink_system", "System", "desktop_windows"),
             ],
@@ -74,9 +74,7 @@ fn slugify(label: &str) -> String {
 
 impl Channels {
     pub fn config_path() -> Result<PathBuf, SinkError> {
-        let dir = dirs::config_dir()
-            .ok_or_else(|| SinkError::Config("cannot resolve the user config directory".into()))?;
-        Ok(dir.join("sink").join("channels.json"))
+        Ok(crate::persistence::app_config_dir()?.join("channels.json"))
     }
 
     pub fn load() -> Self {
@@ -161,7 +159,9 @@ impl Channels {
     pub fn add(&mut self, label: &str, icon: Option<String>) -> Result<ChannelDef, SinkError> {
         let label = label.trim();
         if label.is_empty() || label.len() > 24 {
-            return Err(SinkError::Config("channel label must be 1–24 characters".into()));
+            return Err(SinkError::Config(
+                "channel label must be 1–24 characters".into(),
+            ));
         }
         if self.channels.len() >= MAX_CHANNELS {
             return Err(SinkError::Config(format!(
@@ -188,7 +188,9 @@ impl Channels {
     pub fn rename(&mut self, name: &str, label: &str) -> Result<(), SinkError> {
         let label = label.trim();
         if label.is_empty() || label.len() > 24 {
-            return Err(SinkError::Config("channel label must be 1–24 characters".into()));
+            return Err(SinkError::Config(
+                "channel label must be 1–24 characters".into(),
+            ));
         }
         let def = self
             .channels
@@ -202,15 +204,16 @@ impl Channels {
     /// Reorder the channel set. `order` must contain exactly the current
     /// sink names (it's a permutation, not an edit).
     pub fn reorder(&mut self, order: &[String]) -> Result<(), SinkError> {
-        if order.len() != self.channels.len()
-            || !order.iter().all(|n| self.get(n).is_some())
-        {
+        if order.len() != self.channels.len() || !order.iter().all(|n| self.get(n).is_some()) {
             return Err(SinkError::Config(
                 "reorder must list every existing channel exactly once".into(),
             ));
         }
         self.channels.sort_by_key(|c| {
-            order.iter().position(|n| n == &c.name).unwrap_or(usize::MAX)
+            order
+                .iter()
+                .position(|n| n == &c.name)
+                .unwrap_or(usize::MAX)
         });
         Ok(())
     }
@@ -275,7 +278,10 @@ mod tests {
         ])
         .expect("reorders");
         let names: Vec<&str> = c.channels.iter().map(|d| d.name.as_str()).collect();
-        assert_eq!(names, ["sink_music", "sink_game", "sink_system", "sink_chat"]);
+        assert_eq!(
+            names,
+            ["sink_music", "sink_game", "sink_system", "sink_chat"]
+        );
         // Wrong length and unknown names are rejected.
         assert!(c.reorder(&["sink_game".into()]).is_err());
         assert!(c
@@ -362,6 +368,9 @@ mod tests {
         // load() turns this into defaults; parse itself reports the empty set
         // so load can distinguish it from a corrupt (None) file.
         let raw = r#"{"channels":[{"name":"sink_mic","label":"x"},{"name":"bad","label":"y"}]}"#;
-        assert!(Channels::parse(raw).expect("valid json").channels.is_empty());
+        assert!(Channels::parse(raw)
+            .expect("valid json")
+            .channels
+            .is_empty());
     }
 }

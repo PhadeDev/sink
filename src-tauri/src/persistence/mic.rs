@@ -4,12 +4,9 @@ use std::path::PathBuf;
 use crate::audio::types::MicConfig;
 use crate::error::SinkError;
 
-/// Mic chain configuration, stored as JSON at
-/// `$XDG_CONFIG_HOME/sink/mic.json`.
+/// Mic chain configuration, stored in the app config directory.
 pub fn config_path() -> Result<PathBuf, SinkError> {
-    let dir = dirs::config_dir()
-        .ok_or_else(|| SinkError::Config("cannot resolve the user config directory".into()))?;
-    Ok(dir.join("sink").join("mic.json"))
+    Ok(crate::persistence::app_config_dir()?.join("mic.json"))
 }
 
 pub fn load() -> MicConfig {

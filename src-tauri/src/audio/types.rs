@@ -57,6 +57,28 @@ fn name_quality(value: &str) -> u8 {
     }
 }
 
+/// Portal IDs are often the only reliable way to tell Chromium/Electron
+/// wrappers apart under Wayland, especially for Flatpak and xdg-desktop-portal
+/// launched apps.
+fn prettify_portal_app_id(value: &str) -> Option<String> {
+    match value {
+        "dev.vencord.Vesktop" => Some("Vesktop / Discord".to_string()),
+        "app.zen_browser.zen" => Some("Zen Browser".to_string()),
+        "com.spotify.Client" => Some("Spotify".to_string()),
+        "org.mozilla.firefox" => Some("Firefox".to_string()),
+        "com.google.Chrome" => Some("Google Chrome".to_string()),
+        "org.chromium.Chromium" => Some("Chromium".to_string()),
+        _ => {
+            let last = value.rsplit('.').next()?;
+            if last.is_empty() {
+                None
+            } else {
+                Some(prettify(last))
+            }
+        }
+    }
+}
+
 /// Prettify a value for display: lone all-lowercase binary names get a
 /// capital ("spotify" → "Spotify"). Identity matching always uses the raw
 /// value, so this never affects routing rules.
@@ -76,6 +98,17 @@ fn prettify(value: &str) -> String {
 /// raw match value). The best-quality candidate along the chain wins:
 /// real app names beat runtime wrappers beat generic stream titles.
 pub fn resolve_identity(get: impl Fn(&str) -> Option<String>) -> (String, String, String) {
+    if let Some(portal_id) = get("pipewire.access.portal.app_id") {
+        let portal_id = portal_id.trim();
+        if !portal_id.is_empty() {
+            return (
+                prettify_portal_app_id(portal_id).unwrap_or_else(|| portal_id.to_string()),
+                "pipewire.access.portal.app_id".to_string(),
+                portal_id.to_string(),
+            );
+        }
+    }
+
     const CHAIN: [&str; 4] = [
         "application.name",
         "application.process.binary",
@@ -136,6 +169,31 @@ mod identity_tests {
     }
 
     #[test]
+    fn vesktop_portal_id_beats_chromium_wrapper() {
+        let (display, prop, value) = resolve(&[
+            ("application.name", "Chromium"),
+            ("application.process.binary", "vesktop.bin"),
+            ("pipewire.access.portal.app_id", "dev.vencord.Vesktop"),
+            ("media.name", "Playback"),
+        ]);
+        assert_eq!(display, "Vesktop / Discord");
+        assert_eq!(prop, "pipewire.access.portal.app_id");
+        assert_eq!(value, "dev.vencord.Vesktop");
+    }
+
+    #[test]
+    fn zen_portal_id_gets_human_name() {
+        let (display, prop, value) = resolve(&[
+            ("application.name", "Chromium"),
+            ("application.process.binary", "zen"),
+            ("pipewire.access.portal.app_id", "app.zen_browser.zen"),
+        ]);
+        assert_eq!(display, "Zen Browser");
+        assert_eq!(prop, "pipewire.access.portal.app_id");
+        assert_eq!(value, "app.zen_browser.zen");
+    }
+
+    #[test]
     fn discord_webrtc_resolves_via_binary() {
         let (display, prop, _) = resolve(&[
             ("application.name", "WEBRTC VoiceEngine"),
@@ -192,7 +250,8 @@ mod identity_tests {
 
     #[test]
     fn pure_generic_still_shows_something() {
-        let (display, _, value) = resolve(&[("media.name", "audio-src"), ("node.name", "audio-src")]);
+        let (display, _, value) =
+            resolve(&[("media.name", "audio-src"), ("node.name", "audio-src")]);
         assert_eq!(display, "Audio-src");
         assert_eq!(value, "audio-src");
     }
@@ -315,10 +374,25 @@ impl MicConfig {
             }
         }
         self.gain_percent = self.gain_percent.min(200);
-        self.gate_threshold_db = finite(self.gate_threshold_db, default_gate_threshold(), -100.0, 0.0);
-        self.comp_threshold_db = finite(self.comp_threshold_db, default_comp_threshold(), -100.0, 0.0);
+        self.gate_threshold_db = finite(
+            self.gate_threshold_db,
+            default_gate_threshold(),
+            -100.0,
+            0.0,
+        );
+        self.comp_threshold_db = finite(
+            self.comp_threshold_db,
+            default_comp_threshold(),
+            -100.0,
+            0.0,
+        );
         self.comp_ratio = finite(self.comp_ratio, default_comp_ratio(), 1.0, 20.0);
-        self.limiter_ceiling_db = finite(self.limiter_ceiling_db, default_limiter_ceiling(), -60.0, 0.0);
+        self.limiter_ceiling_db = finite(
+            self.limiter_ceiling_db,
+            default_limiter_ceiling(),
+            -60.0,
+            0.0,
+        );
     }
 }
 

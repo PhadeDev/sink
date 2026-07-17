@@ -8,8 +8,8 @@ use crate::error::SinkError;
 use crate::persistence::assignments::Assignments;
 
 /// A named snapshot of the mixer: channel volumes/mutes, the app→channel
-/// assignment set, and per-channel output choices. Stored as JSON in
-/// `$XDG_CONFIG_HOME/sink/profiles/<name>.json`.
+/// assignment set, and per-channel output choices. Stored as JSON in the app
+/// config directory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Profile {
     pub name: String,
@@ -38,9 +38,7 @@ pub struct ProfileInfo {
 }
 
 fn profiles_dir() -> Result<PathBuf, SinkError> {
-    let dir = dirs::config_dir()
-        .ok_or_else(|| SinkError::Config("cannot resolve the user config directory".into()))?;
-    Ok(dir.join("sink").join("profiles"))
+    Ok(crate::persistence::app_config_dir()?.join("profiles"))
 }
 
 /// Profile names become file names: restrict to a safe charset so a name
@@ -121,7 +119,8 @@ pub fn load(name: &str) -> Result<Profile, SinkError> {
             e.into()
         }
     })?;
-    serde_json::from_str(&raw).map_err(|e| SinkError::Config(format!("malformed profile {name}: {e}")))
+    serde_json::from_str(&raw)
+        .map_err(|e| SinkError::Config(format!("malformed profile {name}: {e}")))
 }
 
 pub fn delete(name: &str) -> Result<(), SinkError> {
@@ -142,7 +141,10 @@ mod tests {
     #[test]
     fn sanitize_accepts_reasonable_names() {
         assert_eq!(sanitize_name("Gaming").expect("valid"), "Gaming");
-        assert_eq!(sanitize_name("  Work_2 -late ").expect("valid"), "Work_2 -late");
+        assert_eq!(
+            sanitize_name("  Work_2 -late ").expect("valid"),
+            "Work_2 -late"
+        );
     }
 
     #[test]

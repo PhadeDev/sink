@@ -66,7 +66,7 @@ impl BusDef {
     }
 }
 
-/// The user's mixes, stored at `$XDG_CONFIG_HOME/sink/buses.json`.
+/// The user's mixes, stored in the app config directory.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Buses {
     pub buses: Vec<BusDef>,
@@ -106,9 +106,7 @@ fn slugify(label: &str) -> String {
 
 impl Buses {
     pub fn config_path() -> Result<PathBuf, SinkError> {
-        let dir = dirs::config_dir()
-            .ok_or_else(|| SinkError::Config("cannot resolve the user config directory".into()))?;
-        Ok(dir.join("sink").join("buses.json"))
+        Ok(crate::persistence::app_config_dir()?.join("buses.json"))
     }
 
     /// Load from disk. On first run (no file), the default Stream Mix bus
@@ -119,9 +117,7 @@ impl Buses {
             Err(_) => return Self::default(),
         };
         match fs::read_to_string(&path) {
-            Ok(raw) => serde_json::from_str::<Self>(&raw)
-                .ok()
-                .unwrap_or_default(),
+            Ok(raw) => serde_json::from_str::<Self>(&raw).ok().unwrap_or_default(),
             Err(_) => {
                 let mut buses = Self::default();
                 buses.buses[0].channels = legacy_channels
@@ -209,7 +205,9 @@ impl Buses {
     pub fn add(&mut self, label: &str) -> Result<BusDef, SinkError> {
         let label = label.trim();
         if label.is_empty() || label.len() > 24 {
-            return Err(SinkError::Config("mix label must be 1–24 characters".into()));
+            return Err(SinkError::Config(
+                "mix label must be 1–24 characters".into(),
+            ));
         }
         // The master mix doesn't count against the user's mixes.
         if self.buses.iter().filter(|b| !is_master(&b.name)).count() >= MAX_BUSES {
@@ -242,7 +240,9 @@ impl Buses {
     pub fn rename(&mut self, name: &str, label: &str) -> Result<(), SinkError> {
         let label = label.trim();
         if label.is_empty() || label.len() > 24 {
-            return Err(SinkError::Config("mix label must be 1–24 characters".into()));
+            return Err(SinkError::Config(
+                "mix label must be 1–24 characters".into(),
+            ));
         }
         let def = self
             .buses
@@ -347,7 +347,9 @@ mod tests {
     fn master_is_protected_and_auto_synced() {
         let mut b = Buses::default();
         assert!(b.remove("sink_stream").is_err());
-        assert!(b.set_members("sink_stream", vec!["sink_game".into()]).is_err());
+        assert!(b
+            .set_members("sink_stream", vec!["sink_game".into()])
+            .is_err());
         // Renaming is allowed - recorders see the label.
         b.rename("sink_stream", "Everything").expect("renames");
 
@@ -379,10 +381,14 @@ mod tests {
         // …and a new channel joins without touching the definition.
         let mut grown = all.clone();
         grown.push("sink_voice".to_string());
-        assert_eq!(b.get(&mix.name).expect("mix").effective_members(&grown), grown);
+        assert_eq!(
+            b.get(&mix.name).expect("mix").effective_members(&grown),
+            grown
+        );
 
         // Keep music out: only music is stored; everything else flows.
-        b.set_members(&mix.name, vec!["sink_music".into()]).expect("sets");
+        b.set_members(&mix.name, vec!["sink_music".into()])
+            .expect("sets");
         assert_eq!(
             b.get(&mix.name).expect("mix").effective_members(&grown),
             vec!["sink_game", "sink_chat", "sink_voice"]
@@ -394,7 +400,8 @@ mod tests {
         let all = vec!["sink_game".to_string(), "sink_music".to_string()];
         let mut b = Buses::default();
         let mix = b.add("Mix").expect("adds"); // exclude, carries all
-        b.set_members(&mix.name, vec!["sink_music".into()]).expect("excludes music");
+        b.set_members(&mix.name, vec!["sink_music".into()])
+            .expect("excludes music");
 
         b.set_exclude(&mix.name, false, &all).expect("to manual");
         let def = b.get(&mix.name).expect("mix");
@@ -415,7 +422,10 @@ mod tests {
         b.sync_master(&["sink_game".into(), "sink_chat".into()]);
         // A channel disappeared: sync must drop it, not merge.
         b.sync_master(&["sink_game".into()]);
-        assert_eq!(b.get("sink_stream").expect("master").channels, vec!["sink_game"]);
+        assert_eq!(
+            b.get("sink_stream").expect("master").channels,
+            vec!["sink_game"]
+        );
         // No channels at all: the master mirrors that too.
         b.sync_master(&[]);
         assert!(b.get("sink_stream").expect("master").channels.is_empty());
