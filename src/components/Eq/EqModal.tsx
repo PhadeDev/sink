@@ -16,6 +16,43 @@ interface EqModalProps {
   onClose: () => void;
 }
 
+const flatBand = (freq_hz: number): EqBand => ({
+  kind: "peaking",
+  freq_hz,
+  gain_db: 0,
+  q: 1,
+});
+
+const detailedLayout = (): EqBand[] => [
+  { kind: "low_shelf", freq_hz: 80, gain_db: 0, q: 0.71 },
+  flatBand(125),
+  flatBand(160),
+  flatBand(315),
+  flatBand(630),
+  flatBand(1250),
+  flatBand(2500),
+  flatBand(5000),
+  flatBand(8000),
+  { kind: "high_shelf", freq_hz: 10000, gain_db: 0, q: 0.71 },
+];
+
+const fineLayout = (): EqBand[] => [
+  { kind: "low_shelf", freq_hz: 55, gain_db: 0, q: 0.71 },
+  flatBand(90),
+  flatBand(140),
+  flatBand(220),
+  flatBand(350),
+  flatBand(550),
+  flatBand(850),
+  flatBand(1300),
+  flatBand(2000),
+  flatBand(3200),
+  flatBand(5000),
+  flatBand(8000),
+  flatBand(10500),
+  { kind: "high_shelf", freq_hz: 12000, gain_db: 0, q: 0.71 },
+];
+
 /** Per-channel parametric EQ editor: response curve, band list, preamp. */
 export function EqModal({ channel, open, onClose }: EqModalProps) {
   const config = useMixerStore(
@@ -52,6 +89,11 @@ export function EqModal({ channel, open, onClose }: EqModalProps) {
   const reset = () => {
     // Back to the flat starting layout; the enable switch is left alone.
     apply({ ...defaultEqConfig(), enabled: config.enabled });
+    setSelected(0);
+  };
+
+  const setLayout = (bands: EqBand[]) => {
+    apply({ ...config, preamp_db: 0, bands: bands.slice(0, MAX_EQ_BANDS) });
     setSelected(0);
   };
 
@@ -104,6 +146,16 @@ export function EqModal({ channel, open, onClose }: EqModalProps) {
         Drag a point to move it · scroll over it to widen or narrow ·
         double-click to flatten
       </p>
+
+      <div className="eqm-tools" aria-label="EQ layout tools">
+        <span className="eqm-count">{config.bands.length}/{MAX_EQ_BANDS} bands</span>
+        <button className="select eqm-toolbtn" onClick={() => setLayout(detailedLayout())}>
+          10-band flat
+        </button>
+        <button className="select eqm-toolbtn" onClick={() => setLayout(fineLayout())}>
+          15-band fine
+        </button>
+      </div>
 
       <DspSlider
         label="Preamp"

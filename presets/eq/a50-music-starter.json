@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "name": "A50 Music Starter",
+  "author": "PhadeDev",
+  "description": "Balanced music curve with controlled low end, cleaner low mids, and a little air.",
+  "preamp_db": -4,
+  "bands": [
+    { "kind": "high_pass", "freq_hz": 25, "gain_db": 0, "q": 0.71 },
+    { "kind": "low_shelf", "freq_hz": 75, "gain_db": 2.5, "q": 0.71 },
+    { "kind": "peaking", "freq_hz": 160, "gain_db": -1.5, "q": 1.0 },
+    { "kind": "peaking", "freq_hz": 315, "gain_db": -2.0, "q": 1.0 },
+    { "kind": "peaking", "freq_hz": 750, "gain_db": -0.8, "q": 1.1 },
+    { "kind": "peaking", "freq_hz": 1500, "gain_db": 0.8, "q": 1.0 },
+    { "kind": "peaking", "freq_hz": 3000, "gain_db": 1.5, "q": 1.1 },
+    { "kind": "peaking", "freq_hz": 6000, "gain_db": -0.8, "q": 1.4 },
+    { "kind": "high_shelf", "freq_hz": 10500, "gain_db": 1.8, "q": 0.71 },
+    { "kind": "low_pass", "freq_hz": 19000, "gain_db": 0, "q": 0.71 }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "name": "System Soften",
+  "author": "PhadeDev",
+  "description": "Tames notifications, browser blips, and sharp system sounds without making them dull.",
+  "preamp_db": -2,
+  "bands": [
+    { "kind": "high_pass", "freq_hz": 55, "gain_db": 0, "q": 0.71 },
+    { "kind": "low_shelf", "freq_hz": 120, "gain_db": -1.5, "q": 0.71 },
+    { "kind": "peaking", "freq_hz": 400, "gain_db": -1.0, "q": 1.0 },
+    { "kind": "peaking", "freq_hz": 1200, "gain_db": -0.8, "q": 1.0 },
+    { "kind": "peaking", "freq_hz": 3000, "gain_db": -1.5, "q": 1.2 },
+    { "kind": "peaking", "freq_hz": 6000, "gain_db": -2.0, "q": 1.6 },
+    { "kind": "high_shelf", "freq_hz": 9000, "gain_db": -2.0, "q": 0.71 },
+    { "kind": "low_pass", "freq_hz": 16000, "gain_db": 0, "q": 0.71 }
+  ]
+}

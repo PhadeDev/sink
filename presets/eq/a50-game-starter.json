@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "name": "A50 Game Starter",
+  "author": "PhadeDev",
+  "description": "Game curve with less rumble, cleaner mids, and presence for positional detail.",
+  "preamp_db": -4,
+  "bands": [
+    { "kind": "high_pass", "freq_hz": 35, "gain_db": 0, "q": 0.71 },
+    { "kind": "low_shelf", "freq_hz": 95, "gain_db": -2.0, "q": 0.71 },
+    { "kind": "peaking", "freq_hz": 180, "gain_db": -2.5, "q": 1.0 },
+    { "kind": "peaking", "freq_hz": 360, "gain_db": -1.8, "q": 1.0 },
+    { "kind": "peaking", "freq_hz": 900, "gain_db": 0.8, "q": 1.1 },
+    { "kind": "peaking", "freq_hz": 1800, "gain_db": 1.5, "q": 1.0 },
+    { "kind": "peaking", "freq_hz": 3200, "gain_db": 3.0, "q": 1.2 },
+    { "kind": "peaking", "freq_hz": 5200, "gain_db": 2.0, "q": 1.4 },
+    { "kind": "high_shelf", "freq_hz": 9500, "gain_db": 1.0, "q": 0.71 },
+    { "kind": "low_pass", "freq_hz": 19000, "gain_db": 0, "q": 0.71 }
+  ]
+}

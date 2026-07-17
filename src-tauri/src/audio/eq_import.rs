@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn caps_at_max_bands_keeping_file_order() {
         let mut text = String::from("Preamp: -1.0 dB\n");
-        for i in 1..=14 {
+        for i in 1..=(MAX_EQ_BANDS + 4) {
             text.push_str(&format!(
                 "Filter {i}: ON PK Fc {} Hz Gain 1.0 dB Q 1.0\n",
                 i * 100
@@ -164,7 +164,7 @@ mod tests {
         let config = parse_autoeq(&text).expect("parses");
         assert_eq!(config.bands.len(), MAX_EQ_BANDS);
         assert_eq!(config.bands[0].freq_hz, 100.0, "first filters win");
-        assert_eq!(config.bands[9].freq_hz, 1000.0);
+        assert_eq!(config.bands[MAX_EQ_BANDS - 1].freq_hz, (MAX_EQ_BANDS * 100) as f32);
     }
 
     #[test]

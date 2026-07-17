@@ -94,17 +94,22 @@ export interface EqConfig {
   bands: EqBand[];
 }
 
-export const MAX_EQ_BANDS = 10;
+export const MAX_EQ_BANDS = 20;
 export const EQ_GAIN_RANGE_DB = 24;
 export const EQ_FREQ_MIN_HZ = 20;
 export const EQ_FREQ_MAX_HZ = 20000;
 
-/** The Sonar-style starting layout (mirrors Rust default_eq_bands). */
+/** The detailed starting layout (mirrors Rust default_eq_bands). */
 export const DEFAULT_EQ_BANDS: EqBand[] = [
-  { kind: "low_shelf", freq_hz: 100, gain_db: 0, q: 0.71 },
-  { kind: "peaking", freq_hz: 500, gain_db: 0, q: 1 },
-  { kind: "peaking", freq_hz: 1500, gain_db: 0, q: 1 },
+  { kind: "low_shelf", freq_hz: 80, gain_db: 0, q: 0.71 },
+  { kind: "peaking", freq_hz: 125, gain_db: 0, q: 1 },
+  { kind: "peaking", freq_hz: 160, gain_db: 0, q: 1 },
+  { kind: "peaking", freq_hz: 315, gain_db: 0, q: 1 },
+  { kind: "peaking", freq_hz: 630, gain_db: 0, q: 1 },
+  { kind: "peaking", freq_hz: 1250, gain_db: 0, q: 1 },
+  { kind: "peaking", freq_hz: 2500, gain_db: 0, q: 1 },
   { kind: "peaking", freq_hz: 5000, gain_db: 0, q: 1 },
+  { kind: "peaking", freq_hz: 8000, gain_db: 0, q: 1 },
   { kind: "high_shelf", freq_hz: 10000, gain_db: 0, q: 0.71 },
 ];
 

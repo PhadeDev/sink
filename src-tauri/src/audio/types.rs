@@ -467,10 +467,10 @@ mod mic_clamp_tests {
     }
 }
 
-/// Hard cap on parametric EQ bands per channel. Ten matches the Sonar EQ
-/// users already know, keeps preset validation simple, and bounds the RT
-/// cost per channel.
-pub const MAX_EQ_BANDS: usize = 10;
+/// Hard cap on parametric EQ bands per channel. Twenty gives enough room
+/// for detailed channel shaping and AutoEq imports while keeping the RT
+/// cost bounded and predictable.
+pub const MAX_EQ_BANDS: usize = 20;
 
 /// Parametric EQ band shapes (RBJ Audio EQ Cookbook designs).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -518,14 +518,19 @@ impl EqBand {
     }
 }
 
-/// The Sonar-style starting layout: shelves at the extremes, three mids,
-/// everything flat. Five bands; the UI can add up to MAX_EQ_BANDS.
+/// The default starting layout: shelves at the extremes and enough mid bands
+/// for detailed per-channel shaping, all numerically flat.
 pub fn default_eq_bands() -> Vec<EqBand> {
     [
-        (EqBandKind::LowShelf, 100.0, 0.71),
-        (EqBandKind::Peaking, 500.0, 1.0),
-        (EqBandKind::Peaking, 1500.0, 1.0),
+        (EqBandKind::LowShelf, 80.0, 0.71),
+        (EqBandKind::Peaking, 125.0, 1.0),
+        (EqBandKind::Peaking, 160.0, 1.0),
+        (EqBandKind::Peaking, 315.0, 1.0),
+        (EqBandKind::Peaking, 630.0, 1.0),
+        (EqBandKind::Peaking, 1250.0, 1.0),
+        (EqBandKind::Peaking, 2500.0, 1.0),
         (EqBandKind::Peaking, 5000.0, 1.0),
+        (EqBandKind::Peaking, 8000.0, 1.0),
         (EqBandKind::HighShelf, 10000.0, 0.71),
     ]
     .into_iter()
